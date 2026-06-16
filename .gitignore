@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+.next/
+dist/
+build/
+coverage/
+web-build/
+.expo/
+out/
+*.tsbuildinfo
+expo-env.d.ts
+
+# Native/generated
+ios/
+android/
+
+# Local/private config
+.env
+.env.*
+!.env.example
+.DS_Store
+.vercel/
+.claude/
+.home/
+
+# Supabase local state
+supabase/.temp/
+supabase/.branches/
+**/supabase/.temp/
+**/supabase/.branches/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Editor/system
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/

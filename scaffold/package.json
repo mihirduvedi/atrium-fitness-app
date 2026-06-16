@@ -1,0 +1,21 @@
+{
+  "name": "atrium",
+  "version": "0.1.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "mobile": "npm run start --workspace mobile"
+  },
+  "devDependencies": {
+    "supabase": "^2.30.4"
+  },
+  "overrides": {
+    "uuid": "11.1.1"
+  }
+}

@@ -1,0 +1,4499 @@
+{
+ "version": "1.0",
+ "generated_for": "Atrium MVP program engine",
+ "exercise_catalog": {
+  "bb_back_squat": {
+   "name": "Back Squat",
+   "pattern": "squat",
+   "equipment": "barbell",
+   "level": 1
+  },
+  "bb_front_squat": {
+   "name": "Front Squat",
+   "pattern": "squat",
+   "equipment": "barbell",
+   "level": 2
+  },
+  "goblet_squat": {
+   "name": "Goblet Squat",
+   "pattern": "squat",
+   "equipment": "dumbbell",
+   "level": 1
+  },
+  "db_squat": {
+   "name": "Dumbbell Squat",
+   "pattern": "squat",
+   "equipment": "dumbbell",
+   "level": 1
+  },
+  "leg_press": {
+   "name": "Leg Press",
+   "pattern": "squat",
+   "equipment": "machine",
+   "level": 1
+  },
+  "hack_squat": {
+   "name": "Hack Squat",
+   "pattern": "squat",
+   "equipment": "machine",
+   "level": 2
+  },
+  "bw_squat": {
+   "name": "Bodyweight Squat",
+   "pattern": "squat",
+   "equipment": "bodyweight",
+   "level": 1
+  },
+  "bw_split_squat": {
+   "name": "Split Squat (BW)",
+   "pattern": "squat",
+   "equipment": "bodyweight",
+   "level": 1
+  },
+  "pistol_prog": {
+   "name": "Pistol Squat Progression",
+   "pattern": "squat",
+   "equipment": "bodyweight",
+   "level": 3
+  },
+  "bb_deadlift": {
+   "name": "Deadlift",
+   "pattern": "hinge",
+   "equipment": "barbell",
+   "level": 1
+  },
+  "bb_rdl": {
+   "name": "Romanian Deadlift",
+   "pattern": "hinge",
+   "equipment": "barbell",
+   "level": 1
+  },
+  "trapbar_dl": {
+   "name": "Trap-Bar Deadlift",
+   "pattern": "hinge",
+   "equipment": "machine",
+   "level": 1
+  },
+  "db_rdl": {
+   "name": "Dumbbell RDL",
+   "pattern": "hinge",
+   "equipment": "dumbbell",
+   "level": 1
+  },
+  "back_ext": {
+   "name": "Back Extension",
+   "pattern": "hinge",
+   "equipment": "machine",
+   "level": 1
+  },
+  "bw_hip_hinge": {
+   "name": "Single-Leg Hip Hinge (BW)",
+   "pattern": "hinge",
+   "equipment": "bodyweight",
+   "level": 1
+  },
+  "bw_glute_bridge": {
+   "name": "Glute Bridge",
+   "pattern": "hinge",
+   "equipment": "bodyweight",
+   "level": 1
+  },
+  "nordic_prog": {
+   "name": "Nordic Curl Progression",
+   "pattern": "hinge",
+   "equipment": "bodyweight",
+   "level": 3
+  },
+  "bb_bench": {
+   "name": "Bench Press",
+   "pattern": "hpress",
+   "equipment": "barbell",
+   "level": 1
+  },
+  "bb_incline_bench": {
+   "name": "Incline Bench Press",
+   "pattern": "hpress",
+   "equipment": "barbell",
+   "level": 2
+  },
+  "db_bench": {
+   "name": "Dumbbell Bench Press",
+   "pattern": "hpress",
+   "equipment": "dumbbell",
+   "level": 1
+  },
+  "db_incline_press": {
+   "name": "Incline DB Press",
+   "pattern": "hpress",
+   "equipment": "dumbbell",
+   "level": 1
+  },
+  "machine_chest_press": {
+   "name": "Machine Chest Press",
+   "pattern": "hpress",
+   "equipment": "machine",
+   "level": 1
+  },
+  "pushup": {
+   "name": "Push-up",
+   "pattern": "hpress",
+   "equipment": "bodyweight",
+   "level": 1
+  },
+  "pushup_deficit": {
+   "name": "Deficit / Weighted Push-up",
+   "pattern": "hpress",
+   "equipment": "bodyweight",
+   "level": 2
+  },
+  "pushup_archer": {
+   "name": "Archer Push-up Progression",
+   "pattern": "hpress",
+   "equipment": "bodyweight",
+   "level": 3
+  },
+  "bb_ohp": {
+   "name": "Overhead Press",
+   "pattern": "vpress",
+   "equipment": "barbell",
+   "level": 1
+  },
+  "db_shoulder_press": {
+   "name": "DB Shoulder Press",
+   "pattern": "vpress",
+   "equipment": "dumbbell",
+   "level": 1
+  },
+  "machine_shoulder_press": {
+   "name": "Machine Shoulder Press",
+   "pattern": "vpress",
+   "equipment": "machine",
+   "level": 1
+  },
+  "pike_pushup": {
+   "name": "Pike Push-up",
+   "pattern": "vpress",
+   "equipment": "bodyweight",
+   "level": 1
+  },
+  "hspu_prog": {
+   "name": "Handstand Push-up Progression",
+   "pattern": "vpress",
+   "equipment": "bodyweight",
+   "level": 3
+  },
+  "bb_row": {
+   "name": "Barbell Row",
+   "pattern": "hpull",
+   "equipment": "barbell",
+   "level": 1
+  },
+  "db_row": {
+   "name": "One-Arm DB Row",
+   "pattern": "hpull",
+   "equipment": "dumbbell",
+   "level": 1
+  },
+  "cable_row": {
+   "name": "Seated Cable Row",
+   "pattern": "hpull",
+   "equipment": "cable",
+   "level": 1
+  },
+  "chest_supported_row": {
+   "name": "Chest-Supported Row",
+   "pattern": "hpull",
+   "equipment": "machine",
+   "level": 1
+  },
+  "inverted_row": {
+   "name": "Inverted Row",
+   "pattern": "hpull",
+   "equipment": "bodyweight",
+   "level": 1
+  },
+  "towel_row": {
+   "name": "Towel/Table Row",
+   "pattern": "hpull",
+   "equipment": "bodyweight",
+   "level": 1
+  },
+  "pullup": {
+   "name": "Pull-up",
+   "pattern": "vpull",
+   "equipment": "bodyweight",
+   "level": 2
+  },
+  "chinup": {
+   "name": "Chin-up",
+   "pattern": "vpull",
+   "equipment": "bodyweight",
+   "level": 2
+  },
+  "lat_pulldown": {
+   "name": "Lat Pulldown",
+   "pattern": "vpull",
+   "equipment": "cable",
+   "level": 1
+  },
+  "band_pulldown": {
+   "name": "Band Pulldown",
+   "pattern": "vpull",
+   "equipment": "band",
+   "level": 1
+  },
+  "negative_pullup": {
+   "name": "Negative Pull-up",
+   "pattern": "vpull",
+   "equipment": "bodyweight",
+   "level": 1
+  },
+  "bb_lunge": {
+   "name": "Barbell Reverse Lunge",
+   "pattern": "lunge",
+   "equipment": "barbell",
+   "level": 2
+  },
+  "db_lunge": {
+   "name": "DB Reverse Lunge",
+   "pattern": "lunge",
+   "equipment": "dumbbell",
+   "level": 1
+  },
+  "bulgarian_ss": {
+   "name": "Bulgarian Split Squat",
+   "pattern": "lunge",
+   "equipment": "dumbbell",
+   "level": 2
+  },
+  "walking_lunge": {
+   "name": "Walking Lunge",
+   "pattern": "lunge",
+   "equipment": "bodyweight",
+   "level": 1
+  },
+  "step_up": {
+   "name": "Step-up",
+   "pattern": "lunge",
+   "equipment": "bodyweight",
+   "level": 1
+  },
+  "cable_fly": {
+   "name": "Cable Fly",
+   "pattern": "chest_iso",
+   "equipment": "cable",
+   "level": 1
+  },
+  "db_fly": {
+   "name": "Dumbbell Fly",
+   "pattern": "chest_iso",
+   "equipment": "dumbbell",
+   "level": 1
+  },
+  "lateral_raise": {
+   "name": "Lateral Raise",
+   "pattern": "side_delt",
+   "equipment": "dumbbell",
+   "level": 1
+  },
+  "cable_lateral": {
+   "name": "Cable Lateral Raise",
+   "pattern": "side_delt",
+   "equipment": "cable",
+   "level": 1
+  },
+  "rear_delt_fly": {
+   "name": "Rear-Delt Fly",
+   "pattern": "rear_delt",
+   "equipment": "dumbbell",
+   "level": 1
+  },
+  "face_pull": {
+   "name": "Face Pull",
+   "pattern": "rear_delt",
+   "equipment": "cable",
+   "level": 1
+  },
+  "band_pull_apart": {
+   "name": "Band Pull-Apart",
+   "pattern": "rear_delt",
+   "equipment": "band",
+   "level": 1
+  },
+  "bb_curl": {
+   "name": "Barbell Curl",
+   "pattern": "biceps",
+   "equipment": "barbell",
+   "level": 1
+  },
+  "db_curl": {
+   "name": "Dumbbell Curl",
+   "pattern": "biceps",
+   "equipment": "dumbbell",
+   "level": 1
+  },
+  "cable_curl": {
+   "name": "Cable Curl",
+   "pattern": "biceps",
+   "equipment": "cable",
+   "level": 1
+  },
+  "triceps_pushdown": {
+   "name": "Triceps Pushdown",
+   "pattern": "triceps",
+   "equipment": "cable",
+   "level": 1
+  },
+  "db_oh_triceps": {
+   "name": "Overhead DB Extension",
+   "pattern": "triceps",
+   "equipment": "dumbbell",
+   "level": 1
+  },
+  "skullcrusher": {
+   "name": "Skullcrusher",
+   "pattern": "triceps",
+   "equipment": "barbell",
+   "level": 2
+  },
+  "diamond_pushup": {
+   "name": "Diamond Push-up",
+   "pattern": "triceps",
+   "equipment": "bodyweight",
+   "level": 1
+  },
+  "leg_ext": {
+   "name": "Leg Extension",
+   "pattern": "quad_iso",
+   "equipment": "machine",
+   "level": 1
+  },
+  "leg_curl": {
+   "name": "Leg Curl",
+   "pattern": "ham_iso",
+   "equipment": "machine",
+   "level": 1
+  },
+  "db_ham_curl": {
+   "name": "Slider/DB Leg Curl",
+   "pattern": "ham_iso",
+   "equipment": "bodyweight",
+   "level": 2
+  },
+  "hip_thrust": {
+   "name": "Barbell Hip Thrust",
+   "pattern": "glute_iso",
+   "equipment": "barbell",
+   "level": 1
+  },
+  "calf_raise": {
+   "name": "Standing Calf Raise",
+   "pattern": "calf",
+   "equipment": "machine",
+   "level": 1
+  },
+  "db_calf_raise": {
+   "name": "DB Calf Raise",
+   "pattern": "calf",
+   "equipment": "dumbbell",
+   "level": 1
+  },
+  "bw_calf_raise": {
+   "name": "Single-Leg Calf Raise",
+   "pattern": "calf",
+   "equipment": "bodyweight",
+   "level": 1
+  },
+  "plank": {
+   "name": "Plank",
+   "pattern": "core",
+   "equipment": "bodyweight",
+   "level": 1
+  },
+  "hanging_knee_raise": {
+   "name": "Hanging Knee Raise",
+   "pattern": "core",
+   "equipment": "bodyweight",
+   "level": 2
+  },
+  "ab_wheel": {
+   "name": "Ab Wheel Rollout",
+   "pattern": "core",
+   "equipment": "bodyweight",
+   "level": 2
+  },
+  "cable_crunch": {
+   "name": "Cable Crunch",
+   "pattern": "core",
+   "equipment": "cable",
+   "level": 1
+  },
+  "farmer_carry": {
+   "name": "Farmer Carry",
+   "pattern": "carry",
+   "equipment": "dumbbell",
+   "level": 1
+  },
+  "kb_swing": {
+   "name": "Kettlebell/DB Swing",
+   "pattern": "cond",
+   "equipment": "dumbbell",
+   "level": 2
+  },
+  "incline_walk": {
+   "name": "Incline Treadmill Walk",
+   "pattern": "cond",
+   "equipment": "machine",
+   "level": 1
+  },
+  "bike_intervals": {
+   "name": "Bike Intervals",
+   "pattern": "cond",
+   "equipment": "machine",
+   "level": 1
+  },
+  "burpee": {
+   "name": "Burpee",
+   "pattern": "cond",
+   "equipment": "bodyweight",
+   "level": 1
+  },
+  "jump_rope": {
+   "name": "Jump Rope / Jumping Jacks",
+   "pattern": "cond",
+   "equipment": "bodyweight",
+   "level": 1
+  }
+ },
+ "swap_ladders": {
+  "squat": [
+   "bb_back_squat",
+   "bb_front_squat",
+   "hack_squat",
+   "leg_press",
+   "goblet_squat",
+   "db_squat",
+   "bw_split_squat",
+   "bw_squat",
+   "pistol_prog"
+  ],
+  "hinge": [
+   "bb_deadlift",
+   "trapbar_dl",
+   "bb_rdl",
+   "db_rdl",
+   "back_ext",
+   "bw_glute_bridge",
+   "bw_hip_hinge",
+   "nordic_prog"
+  ],
+  "hpress": [
+   "bb_bench",
+   "db_bench",
+   "bb_incline_bench",
+   "db_incline_press",
+   "machine_chest_press",
+   "pushup_deficit",
+   "pushup",
+   "pushup_archer"
+  ],
+  "vpress": [
+   "bb_ohp",
+   "db_shoulder_press",
+   "machine_shoulder_press",
+   "pike_pushup",
+   "hspu_prog"
+  ],
+  "hpull": [
+   "bb_row",
+   "chest_supported_row",
+   "cable_row",
+   "db_row",
+   "inverted_row",
+   "towel_row"
+  ],
+  "vpull": [
+   "pullup",
+   "chinup",
+   "lat_pulldown",
+   "band_pulldown",
+   "negative_pullup",
+   "inverted_row"
+  ],
+  "lunge": [
+   "bulgarian_ss",
+   "db_lunge",
+   "bb_lunge",
+   "walking_lunge",
+   "step_up"
+  ],
+  "chest_iso": [
+   "cable_fly",
+   "db_fly",
+   "pushup"
+  ],
+  "side_delt": [
+   "lateral_raise",
+   "cable_lateral",
+   "pike_pushup"
+  ],
+  "rear_delt": [
+   "face_pull",
+   "rear_delt_fly",
+   "band_pull_apart",
+   "inverted_row"
+  ],
+  "biceps": [
+   "db_curl",
+   "bb_curl",
+   "cable_curl",
+   "chinup"
+  ],
+  "triceps": [
+   "triceps_pushdown",
+   "db_oh_triceps",
+   "skullcrusher",
+   "diamond_pushup"
+  ],
+  "quad_iso": [
+   "leg_ext",
+   "goblet_squat",
+   "bw_split_squat"
+  ],
+  "ham_iso": [
+   "leg_curl",
+   "db_ham_curl",
+   "bb_rdl",
+   "bw_glute_bridge"
+  ],
+  "glute_iso": [
+   "hip_thrust",
+   "bw_glute_bridge",
+   "db_lunge"
+  ],
+  "calf": [
+   "calf_raise",
+   "db_calf_raise",
+   "bw_calf_raise"
+  ],
+  "core": [
+   "plank",
+   "ab_wheel",
+   "hanging_knee_raise",
+   "cable_crunch"
+  ],
+  "carry": [
+   "farmer_carry"
+  ],
+  "cond": [
+   "bike_intervals",
+   "incline_walk",
+   "kb_swing",
+   "jump_rope",
+   "burpee"
+  ]
+ },
+ "progression_rules": {
+  "novice_linear": {
+   "type": "linear",
+   "description": "Add load every session while all target reps are completed.",
+   "increment_lb": {
+    "lower_body": 5,
+    "upper_body": 2.5
+   },
+   "on_session_fail": "repeat same load next session",
+   "stall_definition": "2 consecutive failed sessions on the lift",
+   "on_stall": "micro-deload the lift 10%, rebuild; after 3rd stall cycle, graduate slot to double_progression"
+  },
+  "double_progression": {
+   "type": "double_progression",
+   "description": "Work within the rep range at fixed load; when ALL sets hit the top of the range, add load and reset to the bottom.",
+   "increment_lb": {
+    "lower_body": 10,
+    "upper_body": 5,
+    "isolation": 2.5
+   },
+   "stall_definition": "no rep or load increase across 3 consecutive sessions of the lift",
+   "on_stall": "swap to next exercise in the pattern ladder for 4 weeks OR micro-deload 7.5% (engine alternates; coach may override)"
+  },
+  "top_set_backoff": {
+   "type": "top_set_backoff",
+   "description": "One top set progresses by rep target; when top-rep target is hit, load increases. Back-off sets are a fixed % of the top set.",
+   "top_increment_lb": {
+    "lower_body": 5,
+    "upper_body": 2.5
+   },
+   "backoff_pct_of_top": 0.85,
+   "stall_definition": "top-set e1RM flat or down across 3 sessions",
+   "on_stall": "deload week for the lift (-15% load, -1 set), then resume with backoff_pct 0.80 for one week"
+  },
+  "rep_progression": {
+   "type": "rep_progression",
+   "description": "Bodyweight: add 1-2 reps per set each session up to the rep cap, then advance to the next-harder variation in the pattern ladder and reset reps.",
+   "rep_cap_default": 15,
+   "on_stall": "hold variation, add a set (max +1), or slow tempo 3-1-1"
+  },
+  "timed_progression": {
+   "type": "timed",
+   "description": "Add 10-15s per set up to 75s, then advance variation."
+  },
+  "onramp_pct": {
+   "type": "onramp",
+   "description": "Return-to-training ramp: weeks 1-4 at 60/70/80/90% of last-known working loads (or RPE 6 cap if unknown). No PR attempts. Graduates to the matched standard archetype at week 5."
+  }
+ },
+ "engine_policies": {
+  "warmup_scheme": {
+   "first_compound": [
+    "empty bar or 40% x10",
+    "55% x5",
+    "70% x3",
+    "85% x1"
+   ],
+   "later_compounds": [
+    "60% x5",
+    "80% x2"
+   ],
+   "isolation": [
+    "1 light feel set x10 (optional)"
+   ]
+  },
+  "rest_defaults_s": {
+   "main_strength": 180,
+   "compound_hypertrophy": 120,
+   "isolation": 75,
+   "conditioning": 60
+  },
+  "readiness_modulation": {
+   "green": "session as planned",
+   "yellow": "remove 1 back-off/accessory set per compound slot; loads unchanged",
+   "red": "technique session: 80% of planned loads, volume -30%, no top sets; suggest swap to rest day if 2nd consecutive red",
+   "note": "readiness NEVER auto-increases load or volume; upside adjustments are coach suggestions requiring user acceptance"
+  },
+  "deload": {
+   "triggered": "program-level deload when 2+ lifts stall in the same week OR readiness red 3+ days in a 7-day window",
+   "scheduled": "mandatory deload in week 7 of any block if none was triggered earlier",
+   "prescription": "volume -40% (sets), intensity -10% (load), no top sets, duration 1 week"
+  },
+  "safety_bounds": {
+   "max_session_load_jump_pct": 5,
+   "max_weekly_sets_per_muscle": 22,
+   "min_weekly_sets_per_muscle_on_plan": 6,
+   "rep_floor_compounds": 3,
+   "novice_level_cap": "slots for experience='new' may only select exercises with level <= 1",
+   "pain_flag": "any pain report on a lift freezes its progression and surfaces see-a-professional guidance; engine offers pattern-ladder swap",
+   "hard_rule": "the LLM coach proposes; only this rules engine writes loads/sets. All LLM-proposed changes are validated against these bounds."
+  },
+  "graduation": {
+   "novice_to_intermediate": "graduate when 3 slots have hit their 3rd linear stall cycle, or at week 12, whichever first",
+   "blocks": "all archetypes run 12-week blocks; week 12 is a fitness-test/deload hybrid, then re-plan"
+  }
+ },
+ "selector": {
+  "inputs": [
+   "goal",
+   "experience",
+   "days_per_week",
+   "equipment"
+  ],
+  "rules": [
+   {
+    "if": {
+     "experience": "returning"
+    },
+    "then": "return3",
+    "note": "always on-ramp first; graduates to the otherwise-matched archetype at week 5"
+   },
+   {
+    "if": {
+     "equipment": "bodyweight"
+    },
+    "then": {
+     "days<=3": "bw_fb3",
+     "days>=4": "bw4"
+    }
+   },
+   {
+    "if": {
+     "equipment": "dumbbell"
+    },
+    "then": {
+     "goal=fat_loss": "db_cut3",
+     "days<=3": "db_fb3",
+     "days>=4": "db_ul4"
+    }
+   },
+   {
+    "if": {
+     "equipment": "home_barbell"
+    },
+    "then": {
+     "days<=3 & exp in [new]": "bb_fb3",
+     "days<=3 & goal=strength & exp=advanced": "str3_topset",
+     "days<=3": "bb_fb3",
+     "days>=4": "bb_ul4"
+    }
+   },
+   {
+    "if": {
+     "equipment": "full_gym",
+     "days_per_week": 2
+    },
+    "then": "fb2_busy"
+   },
+   {
+    "if": {
+     "equipment": "full_gym",
+     "experience": "new"
+    },
+    "then": "fb3_novice_linear"
+   },
+   {
+    "if": {
+     "equipment": "full_gym",
+     "goal": "fat_loss"
+    },
+    "then": "cut3_fullbody"
+   },
+   {
+    "if": {
+     "equipment": "full_gym",
+     "goal": "general"
+    },
+    "then": "gen3_mixed"
+   },
+   {
+    "if": {
+     "equipment": "full_gym",
+     "goal": "strength",
+     "days_per_week": 3
+    },
+    "then": {
+     "exp=advanced": "str3_topset",
+     "else": "fb3_novice_linear|fb3_hypertrophy by exp"
+    }
+   },
+   {
+    "if": {
+     "equipment": "full_gym",
+     "days_per_week": 4
+    },
+    "then": {
+     "goal=strength": "ul4_strength",
+     "goal=muscle": "ul4_hypertrophy",
+     "else": "ul4_strength"
+    }
+   },
+   {
+    "if": {
+     "equipment": "full_gym",
+     "days_per_week": 5
+    },
+    "then": "ppl_ul5"
+   },
+   {
+    "if": {
+     "equipment": "full_gym",
+     "days_per_week": 6,
+     "experience": "advanced"
+    },
+    "then": "ppl6",
+    "else": "ppl_ul5"
+   },
+   {
+    "fallback_policy": "if requested days unavailable for a combination, round DOWN to the nearest archetype (adherence beats volume); never round a 'new' user up past 4 days"
+   }
+  ]
+ },
+ "archetypes": [
+  {
+   "id": "fb3_novice_linear",
+   "name": "Foundations 3\u00d7",
+   "goals": [
+    "strength",
+    "general"
+   ],
+   "experience": [
+    "new",
+    "returning"
+   ],
+   "days_per_week": 3,
+   "equipment": [
+    "full_gym",
+    "home_barbell"
+   ],
+   "block_weeks": 12,
+   "structure": "alternate_AB",
+   "summary": "Alternating A/B full-body. Linear progression on the big lifts \u2014 the fastest strength returns a novice will ever see.",
+   "sessions": [
+    {
+     "name": "Full Body A",
+     "slots": [
+      {
+       "pattern": "squat",
+       "primary": "bb_back_squat",
+       "sets": 3,
+       "reps": [
+        5,
+        5
+       ],
+       "rule": "novice_linear",
+       "rest_s": 180
+      },
+      {
+       "pattern": "hpress",
+       "primary": "bb_bench",
+       "sets": 3,
+       "reps": [
+        5,
+        5
+       ],
+       "rule": "novice_linear",
+       "rest_s": 180
+      },
+      {
+       "pattern": "hpull",
+       "primary": "bb_row",
+       "sets": 3,
+       "reps": [
+        6,
+        8
+       ],
+       "rule": "novice_linear",
+       "rest_s": 150
+      },
+      {
+       "pattern": "core",
+       "primary": "plank",
+       "sets": 3,
+       "reps": [
+        30,
+        60
+       ],
+       "rule": "timed_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Full Body B",
+     "slots": [
+      {
+       "pattern": "squat",
+       "primary": "bb_back_squat",
+       "sets": 3,
+       "reps": [
+        5,
+        5
+       ],
+       "rule": "novice_linear",
+       "rest_s": 180
+      },
+      {
+       "pattern": "vpress",
+       "primary": "bb_ohp",
+       "sets": 3,
+       "reps": [
+        5,
+        5
+       ],
+       "rule": "novice_linear",
+       "rest_s": 180
+      },
+      {
+       "pattern": "hinge",
+       "primary": "bb_deadlift",
+       "sets": 1,
+       "reps": [
+        5,
+        5
+       ],
+       "rule": "novice_linear",
+       "rest_s": 240,
+       "note": "single heavy set; deadlift recovers slowly"
+      },
+      {
+       "pattern": "vpull",
+       "primary": "lat_pulldown",
+       "sets": 3,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      }
+     ]
+    }
+   ],
+   "notes": "Sessions alternate A,B,A / B,A,B week to week."
+  },
+  {
+   "id": "fb3_hypertrophy",
+   "name": "Full-Body 3\u00d7 Growth",
+   "goals": [
+    "muscle"
+   ],
+   "experience": [
+    "intermediate"
+   ],
+   "days_per_week": 3,
+   "equipment": [
+    "full_gym"
+   ],
+   "block_weeks": 12,
+   "structure": "weekly",
+   "summary": "Three distinct full-body days; every muscle hit 3\u00d7/week at moderate volume per session.",
+   "sessions": [
+    {
+     "name": "Full Body 1",
+     "slots": [
+      {
+       "pattern": "squat",
+       "primary": "bb_back_squat",
+       "sets": 3,
+       "reps": [
+        6,
+        8
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpress",
+       "primary": "db_bench",
+       "sets": 3,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpull",
+       "primary": "cable_row",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "side_delt",
+       "primary": "lateral_raise",
+       "sets": 3,
+       "reps": [
+        12,
+        15
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "biceps",
+       "primary": "db_curl",
+       "sets": 2,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Full Body 2",
+     "slots": [
+      {
+       "pattern": "hinge",
+       "primary": "bb_rdl",
+       "sets": 3,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "vpress",
+       "primary": "bb_ohp",
+       "sets": 3,
+       "reps": [
+        6,
+        8
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "vpull",
+       "primary": "lat_pulldown",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "quad_iso",
+       "primary": "leg_ext",
+       "sets": 2,
+       "reps": [
+        12,
+        15
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "triceps",
+       "primary": "triceps_pushdown",
+       "sets": 2,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Full Body 3",
+     "slots": [
+      {
+       "pattern": "squat",
+       "primary": "leg_press",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpress",
+       "primary": "bb_incline_bench",
+       "sets": 3,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpull",
+       "primary": "chest_supported_row",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "ham_iso",
+       "primary": "leg_curl",
+       "sets": 2,
+       "reps": [
+        12,
+        15
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "rear_delt",
+       "primary": "face_pull",
+       "sets": 2,
+       "reps": [
+        15,
+        20
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "fb2_busy",
+   "name": "The 2-Day",
+   "goals": [
+    "general",
+    "strength"
+   ],
+   "experience": [
+    "new",
+    "returning",
+    "intermediate"
+   ],
+   "days_per_week": 2,
+   "equipment": [
+    "full_gym",
+    "home_barbell"
+   ],
+   "block_weeks": 12,
+   "structure": "weekly",
+   "summary": "Two efficient full-body sessions. Designed for adherence \u2014 covers every pattern, ~45 minutes each.",
+   "sessions": [
+    {
+     "name": "Day A",
+     "slots": [
+      {
+       "pattern": "squat",
+       "primary": "bb_back_squat",
+       "sets": 3,
+       "reps": [
+        6,
+        8
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpress",
+       "primary": "bb_bench",
+       "sets": 3,
+       "reps": [
+        6,
+        8
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpull",
+       "primary": "cable_row",
+       "sets": 3,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "core",
+       "primary": "plank",
+       "sets": 2,
+       "reps": [
+        30,
+        60
+       ],
+       "rule": "timed_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Day B",
+     "slots": [
+      {
+       "pattern": "hinge",
+       "primary": "bb_rdl",
+       "sets": 3,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "vpress",
+       "primary": "bb_ohp",
+       "sets": 3,
+       "reps": [
+        6,
+        8
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "vpull",
+       "primary": "lat_pulldown",
+       "sets": 3,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "carry",
+       "primary": "farmer_carry",
+       "sets": 2,
+       "reps": [
+        30,
+        45
+       ],
+       "rule": "timed_progression",
+       "rest_s": 90,
+       "note": "seconds per carry"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "ul4_strength",
+   "name": "Upper / Lower 4\u00d7 \u2014 Strength",
+   "goals": [
+    "strength"
+   ],
+   "experience": [
+    "intermediate",
+    "advanced"
+   ],
+   "days_per_week": 4,
+   "equipment": [
+    "full_gym"
+   ],
+   "block_weeks": 12,
+   "structure": "weekly",
+   "summary": "Two strength days (top-set/back-off), two volume days. The flagship intermediate program \u2014 the one in the app's demo.",
+   "sessions": [
+    {
+     "name": "Upper \u2014 Strength",
+     "slots": [
+      {
+       "pattern": "hpress",
+       "primary": "bb_bench",
+       "scheme": "top_set_backoff",
+       "top": {
+        "sets": 1,
+        "reps": [
+         4,
+         6
+        ]
+       },
+       "backoff": {
+        "sets": 3,
+        "reps": [
+         6,
+         8
+        ],
+        "pct_of_top": 0.85
+       },
+       "rule": "top_set_backoff",
+       "rest_s": 180
+      },
+      {
+       "pattern": "hpull",
+       "primary": "bb_row",
+       "sets": 4,
+       "reps": [
+        6,
+        8
+       ],
+       "rule": "double_progression",
+       "rest_s": 150
+      },
+      {
+       "pattern": "vpress",
+       "primary": "bb_ohp",
+       "sets": 3,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "vpull",
+       "primary": "lat_pulldown",
+       "sets": 3,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "biceps",
+       "primary": "db_curl",
+       "sets": 2,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Lower \u2014 Strength",
+     "slots": [
+      {
+       "pattern": "squat",
+       "primary": "bb_back_squat",
+       "scheme": "top_set_backoff",
+       "top": {
+        "sets": 1,
+        "reps": [
+         4,
+         6
+        ]
+       },
+       "backoff": {
+        "sets": 3,
+        "reps": [
+         6,
+         8
+        ],
+        "pct_of_top": 0.85
+       },
+       "rule": "top_set_backoff",
+       "rest_s": 180
+      },
+      {
+       "pattern": "hinge",
+       "primary": "bb_rdl",
+       "sets": 3,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 180
+      },
+      {
+       "pattern": "squat",
+       "primary": "leg_press",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "calf",
+       "primary": "calf_raise",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "core",
+       "primary": "plank",
+       "sets": 3,
+       "reps": [
+        30,
+        60
+       ],
+       "rule": "timed_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Upper \u2014 Volume",
+     "slots": [
+      {
+       "pattern": "hpress",
+       "primary": "bb_incline_bench",
+       "sets": 4,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpull",
+       "primary": "chest_supported_row",
+       "sets": 4,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "vpress",
+       "primary": "db_shoulder_press",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "side_delt",
+       "primary": "lateral_raise",
+       "sets": 3,
+       "reps": [
+        12,
+        15
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "triceps",
+       "primary": "triceps_pushdown",
+       "sets": 2,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "biceps",
+       "primary": "cable_curl",
+       "sets": 2,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Lower \u2014 Volume",
+     "slots": [
+      {
+       "pattern": "squat",
+       "primary": "bb_front_squat",
+       "sets": 4,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 180
+      },
+      {
+       "pattern": "glute_iso",
+       "primary": "hip_thrust",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "ham_iso",
+       "primary": "leg_curl",
+       "sets": 3,
+       "reps": [
+        12,
+        15
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "lunge",
+       "primary": "walking_lunge",
+       "sets": 2,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "rep_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "calf",
+       "primary": "calf_raise",
+       "sets": 3,
+       "reps": [
+        12,
+        15
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "ul4_hypertrophy",
+   "name": "Upper / Lower 4\u00d7 \u2014 Growth",
+   "goals": [
+    "muscle"
+   ],
+   "experience": [
+    "intermediate",
+    "advanced"
+   ],
+   "days_per_week": 4,
+   "equipment": [
+    "full_gym"
+   ],
+   "block_weeks": 12,
+   "structure": "weekly",
+   "summary": "Hypertrophy-biased upper/lower: higher rep ranges, more isolation, every muscle 2\u00d7/week at 12-18 weekly sets.",
+   "sessions": [
+    {
+     "name": "Upper 1",
+     "slots": [
+      {
+       "pattern": "hpress",
+       "primary": "bb_bench",
+       "sets": 4,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpull",
+       "primary": "bb_row",
+       "sets": 4,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 150
+      },
+      {
+       "pattern": "vpress",
+       "primary": "db_shoulder_press",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "vpull",
+       "primary": "lat_pulldown",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "side_delt",
+       "primary": "lateral_raise",
+       "sets": 3,
+       "reps": [
+        12,
+        15
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "triceps",
+       "primary": "triceps_pushdown",
+       "sets": 2,
+       "reps": [
+        12,
+        15
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Lower 1",
+     "slots": [
+      {
+       "pattern": "squat",
+       "primary": "bb_back_squat",
+       "sets": 4,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 180
+      },
+      {
+       "pattern": "hinge",
+       "primary": "bb_rdl",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "quad_iso",
+       "primary": "leg_ext",
+       "sets": 3,
+       "reps": [
+        12,
+        15
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "ham_iso",
+       "primary": "leg_curl",
+       "sets": 3,
+       "reps": [
+        12,
+        15
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "calf",
+       "primary": "calf_raise",
+       "sets": 4,
+       "reps": [
+        10,
+        15
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Upper 2",
+     "slots": [
+      {
+       "pattern": "hpress",
+       "primary": "db_incline_press",
+       "sets": 4,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpull",
+       "primary": "cable_row",
+       "sets": 4,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "chest_iso",
+       "primary": "cable_fly",
+       "sets": 3,
+       "reps": [
+        12,
+        15
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "rear_delt",
+       "primary": "face_pull",
+       "sets": 3,
+       "reps": [
+        15,
+        20
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "biceps",
+       "primary": "db_curl",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "triceps",
+       "primary": "db_oh_triceps",
+       "sets": 2,
+       "reps": [
+        12,
+        15
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Lower 2",
+     "slots": [
+      {
+       "pattern": "squat",
+       "primary": "leg_press",
+       "sets": 4,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "glute_iso",
+       "primary": "hip_thrust",
+       "sets": 4,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "lunge",
+       "primary": "bulgarian_ss",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "ham_iso",
+       "primary": "db_ham_curl",
+       "sets": 2,
+       "reps": [
+        12,
+        15
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "calf",
+       "primary": "bw_calf_raise",
+       "sets": 3,
+       "reps": [
+        12,
+        20
+       ],
+       "rule": "rep_progression",
+       "rest_s": 75
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "ppl6",
+   "name": "Push / Pull / Legs 6\u00d7",
+   "goals": [
+    "muscle"
+   ],
+   "experience": [
+    "advanced"
+   ],
+   "days_per_week": 6,
+   "equipment": [
+    "full_gym"
+   ],
+   "block_weeks": 12,
+   "structure": "weekly",
+   "summary": "The classic six-day PPL, each muscle 2\u00d7/week. High commitment; only offered at 5+ days and 3+ years experience.",
+   "sessions": [
+    {
+     "name": "Push 1",
+     "slots": [
+      {
+       "pattern": "hpress",
+       "primary": "bb_bench",
+       "scheme": "top_set_backoff",
+       "top": {
+        "sets": 1,
+        "reps": [
+         4,
+         6
+        ]
+       },
+       "backoff": {
+        "sets": 3,
+        "reps": [
+         6,
+         8
+        ],
+        "pct_of_top": 0.85
+       },
+       "rule": "top_set_backoff",
+       "rest_s": 180
+      },
+      {
+       "pattern": "vpress",
+       "primary": "bb_ohp",
+       "sets": 3,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpress",
+       "primary": "db_incline_press",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "side_delt",
+       "primary": "lateral_raise",
+       "sets": 3,
+       "reps": [
+        12,
+        15
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "triceps",
+       "primary": "triceps_pushdown",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Pull 1",
+     "slots": [
+      {
+       "pattern": "hpull",
+       "primary": "bb_row",
+       "sets": 4,
+       "reps": [
+        6,
+        8
+       ],
+       "rule": "double_progression",
+       "rest_s": 150
+      },
+      {
+       "pattern": "vpull",
+       "primary": "pullup",
+       "sets": 3,
+       "reps": [
+        6,
+        10
+       ],
+       "rule": "rep_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpull",
+       "primary": "cable_row",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "rear_delt",
+       "primary": "face_pull",
+       "sets": 3,
+       "reps": [
+        15,
+        20
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "biceps",
+       "primary": "bb_curl",
+       "sets": 3,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Legs 1",
+     "slots": [
+      {
+       "pattern": "squat",
+       "primary": "bb_back_squat",
+       "scheme": "top_set_backoff",
+       "top": {
+        "sets": 1,
+        "reps": [
+         4,
+         6
+        ]
+       },
+       "backoff": {
+        "sets": 3,
+        "reps": [
+         6,
+         8
+        ],
+        "pct_of_top": 0.85
+       },
+       "rule": "top_set_backoff",
+       "rest_s": 180
+      },
+      {
+       "pattern": "hinge",
+       "primary": "bb_rdl",
+       "sets": 3,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "squat",
+       "primary": "leg_press",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "ham_iso",
+       "primary": "leg_curl",
+       "sets": 3,
+       "reps": [
+        12,
+        15
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "calf",
+       "primary": "calf_raise",
+       "sets": 4,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Push 2",
+     "slots": [
+      {
+       "pattern": "hpress",
+       "primary": "db_bench",
+       "sets": 4,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "vpress",
+       "primary": "machine_shoulder_press",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "chest_iso",
+       "primary": "cable_fly",
+       "sets": 3,
+       "reps": [
+        12,
+        15
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "side_delt",
+       "primary": "cable_lateral",
+       "sets": 3,
+       "reps": [
+        15,
+        20
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "triceps",
+       "primary": "skullcrusher",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Pull 2",
+     "slots": [
+      {
+       "pattern": "vpull",
+       "primary": "lat_pulldown",
+       "sets": 4,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpull",
+       "primary": "chest_supported_row",
+       "sets": 4,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "rear_delt",
+       "primary": "rear_delt_fly",
+       "sets": 3,
+       "reps": [
+        15,
+        20
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "biceps",
+       "primary": "db_curl",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "core",
+       "primary": "hanging_knee_raise",
+       "sets": 3,
+       "reps": [
+        10,
+        15
+       ],
+       "rule": "rep_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Legs 2",
+     "slots": [
+      {
+       "pattern": "squat",
+       "primary": "bb_front_squat",
+       "sets": 4,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 180
+      },
+      {
+       "pattern": "glute_iso",
+       "primary": "hip_thrust",
+       "sets": 4,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "lunge",
+       "primary": "bulgarian_ss",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "quad_iso",
+       "primary": "leg_ext",
+       "sets": 3,
+       "reps": [
+        12,
+        15
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "calf",
+       "primary": "db_calf_raise",
+       "sets": 4,
+       "reps": [
+        12,
+        15
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "ppl_ul5",
+   "name": "Hybrid 5\u00d7 (PPL + Upper/Lower)",
+   "goals": [
+    "muscle",
+    "strength"
+   ],
+   "experience": [
+    "intermediate",
+    "advanced"
+   ],
+   "days_per_week": 5,
+   "equipment": [
+    "full_gym"
+   ],
+   "block_weeks": 12,
+   "structure": "weekly",
+   "summary": "Push/Pull/Legs early week, Upper/Lower to finish. The best-balanced 5-day option.",
+   "sessions": [
+    {
+     "name": "Push",
+     "slots": [
+      {
+       "pattern": "hpress",
+       "primary": "bb_bench",
+       "scheme": "top_set_backoff",
+       "top": {
+        "sets": 1,
+        "reps": [
+         4,
+         6
+        ]
+       },
+       "backoff": {
+        "sets": 3,
+        "reps": [
+         6,
+         8
+        ],
+        "pct_of_top": 0.85
+       },
+       "rule": "top_set_backoff",
+       "rest_s": 180
+      },
+      {
+       "pattern": "vpress",
+       "primary": "bb_ohp",
+       "sets": 3,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "side_delt",
+       "primary": "lateral_raise",
+       "sets": 3,
+       "reps": [
+        12,
+        15
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "triceps",
+       "primary": "triceps_pushdown",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Pull",
+     "slots": [
+      {
+       "pattern": "hpull",
+       "primary": "bb_row",
+       "sets": 4,
+       "reps": [
+        6,
+        8
+       ],
+       "rule": "double_progression",
+       "rest_s": 150
+      },
+      {
+       "pattern": "vpull",
+       "primary": "lat_pulldown",
+       "sets": 3,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "rear_delt",
+       "primary": "face_pull",
+       "sets": 3,
+       "reps": [
+        15,
+        20
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "biceps",
+       "primary": "db_curl",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Legs",
+     "slots": [
+      {
+       "pattern": "squat",
+       "primary": "bb_back_squat",
+       "scheme": "top_set_backoff",
+       "top": {
+        "sets": 1,
+        "reps": [
+         4,
+         6
+        ]
+       },
+       "backoff": {
+        "sets": 3,
+        "reps": [
+         6,
+         8
+        ],
+        "pct_of_top": 0.85
+       },
+       "rule": "top_set_backoff",
+       "rest_s": 180
+      },
+      {
+       "pattern": "hinge",
+       "primary": "bb_rdl",
+       "sets": 3,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "squat",
+       "primary": "leg_press",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "calf",
+       "primary": "calf_raise",
+       "sets": 4,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Upper",
+     "slots": [
+      {
+       "pattern": "hpress",
+       "primary": "db_incline_press",
+       "sets": 4,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpull",
+       "primary": "chest_supported_row",
+       "sets": 4,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "vpress",
+       "primary": "db_shoulder_press",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "chest_iso",
+       "primary": "cable_fly",
+       "sets": 2,
+       "reps": [
+        12,
+        15
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "biceps",
+       "primary": "cable_curl",
+       "sets": 2,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "triceps",
+       "primary": "db_oh_triceps",
+       "sets": 2,
+       "reps": [
+        12,
+        15
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Lower",
+     "slots": [
+      {
+       "pattern": "hinge",
+       "primary": "trapbar_dl",
+       "sets": 3,
+       "reps": [
+        6,
+        8
+       ],
+       "rule": "double_progression",
+       "rest_s": 210
+      },
+      {
+       "pattern": "squat",
+       "primary": "hack_squat",
+       "sets": 3,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "ham_iso",
+       "primary": "leg_curl",
+       "sets": 3,
+       "reps": [
+        12,
+        15
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "glute_iso",
+       "primary": "hip_thrust",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "core",
+       "primary": "plank",
+       "sets": 3,
+       "reps": [
+        30,
+        60
+       ],
+       "rule": "timed_progression",
+       "rest_s": 75
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "str3_topset",
+   "name": "Big-Three 3\u00d7",
+   "goals": [
+    "strength"
+   ],
+   "experience": [
+    "advanced"
+   ],
+   "days_per_week": 3,
+   "equipment": [
+    "full_gym",
+    "home_barbell"
+   ],
+   "block_weeks": 12,
+   "structure": "weekly",
+   "summary": "Squat / bench / deadlift specialization, top-set + back-off everywhere. For lifters who want numbers, not pump.",
+   "sessions": [
+    {
+     "name": "Squat Day",
+     "slots": [
+      {
+       "pattern": "squat",
+       "primary": "bb_back_squat",
+       "scheme": "top_set_backoff",
+       "top": {
+        "sets": 1,
+        "reps": [
+         3,
+         5
+        ]
+       },
+       "backoff": {
+        "sets": 4,
+        "reps": [
+         5,
+         8
+        ],
+        "pct_of_top": 0.85
+       },
+       "rule": "top_set_backoff",
+       "rest_s": 210
+      },
+      {
+       "pattern": "hpress",
+       "primary": "bb_bench",
+       "sets": 3,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 180,
+       "note": "light technique work"
+      },
+      {
+       "pattern": "hpull",
+       "primary": "bb_row",
+       "sets": 3,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "core",
+       "primary": "plank",
+       "sets": 3,
+       "reps": [
+        30,
+        60
+       ],
+       "rule": "timed_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Bench Day",
+     "slots": [
+      {
+       "pattern": "hpress",
+       "primary": "bb_bench",
+       "scheme": "top_set_backoff",
+       "top": {
+        "sets": 1,
+        "reps": [
+         3,
+         5
+        ]
+       },
+       "backoff": {
+        "sets": 4,
+        "reps": [
+         5,
+         8
+        ],
+        "pct_of_top": 0.85
+       },
+       "rule": "top_set_backoff",
+       "rest_s": 210
+      },
+      {
+       "pattern": "vpress",
+       "primary": "bb_ohp",
+       "sets": 3,
+       "reps": [
+        6,
+        8
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "vpull",
+       "primary": "pullup",
+       "sets": 3,
+       "reps": [
+        6,
+        10
+       ],
+       "rule": "rep_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "triceps",
+       "primary": "triceps_pushdown",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Deadlift Day",
+     "slots": [
+      {
+       "pattern": "hinge",
+       "primary": "bb_deadlift",
+       "scheme": "top_set_backoff",
+       "top": {
+        "sets": 1,
+        "reps": [
+         3,
+         5
+        ]
+       },
+       "backoff": {
+        "sets": 3,
+        "reps": [
+         5,
+         8
+        ],
+        "pct_of_top": 0.85
+       },
+       "rule": "top_set_backoff",
+       "rest_s": 240
+      },
+      {
+       "pattern": "squat",
+       "primary": "bb_front_squat",
+       "sets": 3,
+       "reps": [
+        6,
+        8
+       ],
+       "rule": "double_progression",
+       "rest_s": 180
+      },
+      {
+       "pattern": "hpull",
+       "primary": "chest_supported_row",
+       "sets": 3,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "core",
+       "primary": "hanging_knee_raise",
+       "sets": 3,
+       "reps": [
+        10,
+        15
+       ],
+       "rule": "rep_progression",
+       "rest_s": 75
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "cut3_fullbody",
+   "name": "Deficit 3\u00d7 + Conditioning",
+   "goals": [
+    "fat_loss"
+   ],
+   "experience": [
+    "new",
+    "returning",
+    "intermediate"
+   ],
+   "days_per_week": 3,
+   "equipment": [
+    "full_gym"
+   ],
+   "block_weeks": 12,
+   "structure": "weekly",
+   "summary": "Full-body strength to defend muscle in a calorie deficit, plus short conditioning finishers. Progression expectation: maintain, don't PR.",
+   "sessions": [
+    {
+     "name": "Full Body 1",
+     "slots": [
+      {
+       "pattern": "squat",
+       "primary": "bb_back_squat",
+       "sets": 3,
+       "reps": [
+        6,
+        8
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpress",
+       "primary": "db_bench",
+       "sets": 3,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpull",
+       "primary": "cable_row",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "cond",
+       "primary": "bike_intervals",
+       "scheme": "conditioning",
+       "duration_min": 10,
+       "rule": "timed_progression",
+       "rest_s": 60,
+       "note": "8\u00d7 30s hard / 45s easy"
+      }
+     ]
+    },
+    {
+     "name": "Full Body 2",
+     "slots": [
+      {
+       "pattern": "hinge",
+       "primary": "bb_rdl",
+       "sets": 3,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "vpress",
+       "primary": "bb_ohp",
+       "sets": 3,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "vpull",
+       "primary": "lat_pulldown",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "cond",
+       "primary": "incline_walk",
+       "scheme": "conditioning",
+       "duration_min": 12,
+       "rule": "timed_progression",
+       "rest_s": 60,
+       "note": "steady, conversational pace"
+      }
+     ]
+    },
+    {
+     "name": "Full Body 3",
+     "slots": [
+      {
+       "pattern": "squat",
+       "primary": "leg_press",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpress",
+       "primary": "db_incline_press",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpull",
+       "primary": "db_row",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "cond",
+       "primary": "kb_swing",
+       "scheme": "conditioning",
+       "duration_min": 8,
+       "rule": "timed_progression",
+       "rest_s": 60,
+       "note": "EMOM 8 min \u00d7 12 swings"
+      }
+     ]
+    }
+   ],
+   "notes": "Engine caps load increases at 1 step per 2 weeks during an active deficit; stall rules relaxed (maintenance = success)."
+  },
+  {
+   "id": "return3",
+   "name": "Restart Ramp 3\u00d7",
+   "goals": [
+    "general",
+    "strength",
+    "muscle"
+   ],
+   "experience": [
+    "returning"
+   ],
+   "days_per_week": 3,
+   "equipment": [
+    "full_gym",
+    "home_barbell"
+   ],
+   "block_weeks": 12,
+   "structure": "alternate_AB",
+   "summary": "Four-week on-ramp after a layoff: same A/B structure as Foundations, loads start at 60% of your last-known numbers and climb 10%/week. Soreness-managed, ego-managed. Graduates automatically into the matched standard archetype.",
+   "sessions": [
+    {
+     "name": "Full Body A",
+     "slots": [
+      {
+       "pattern": "squat",
+       "primary": "bb_back_squat",
+       "sets": 3,
+       "reps": [
+        8,
+        8
+       ],
+       "rule": "onramp_pct",
+       "rest_s": 150
+      },
+      {
+       "pattern": "hpress",
+       "primary": "bb_bench",
+       "sets": 3,
+       "reps": [
+        8,
+        8
+       ],
+       "rule": "onramp_pct",
+       "rest_s": 150
+      },
+      {
+       "pattern": "hpull",
+       "primary": "cable_row",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "onramp_pct",
+       "rest_s": 120
+      },
+      {
+       "pattern": "core",
+       "primary": "plank",
+       "sets": 2,
+       "reps": [
+        30,
+        45
+       ],
+       "rule": "timed_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Full Body B",
+     "slots": [
+      {
+       "pattern": "squat",
+       "primary": "goblet_squat",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "onramp_pct",
+       "rest_s": 120
+      },
+      {
+       "pattern": "vpress",
+       "primary": "bb_ohp",
+       "sets": 3,
+       "reps": [
+        8,
+        8
+       ],
+       "rule": "onramp_pct",
+       "rest_s": 150
+      },
+      {
+       "pattern": "hinge",
+       "primary": "bb_rdl",
+       "sets": 3,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "onramp_pct",
+       "rest_s": 150
+      },
+      {
+       "pattern": "vpull",
+       "primary": "lat_pulldown",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "onramp_pct",
+       "rest_s": 120
+      }
+     ]
+    }
+   ],
+   "onramp_weeks": 4
+  },
+  {
+   "id": "bb_fb3",
+   "name": "Garage Full-Body 3\u00d7",
+   "goals": [
+    "strength",
+    "muscle",
+    "general"
+   ],
+   "experience": [
+    "new",
+    "returning",
+    "intermediate"
+   ],
+   "days_per_week": 3,
+   "equipment": [
+    "home_barbell"
+   ],
+   "block_weeks": 12,
+   "structure": "alternate_AB",
+   "summary": "Barbell + rack + bench, no machines. Linear early, double progression after.",
+   "sessions": [
+    {
+     "name": "Full Body A",
+     "slots": [
+      {
+       "pattern": "squat",
+       "primary": "bb_back_squat",
+       "sets": 3,
+       "reps": [
+        5,
+        5
+       ],
+       "rule": "novice_linear",
+       "rest_s": 180
+      },
+      {
+       "pattern": "hpress",
+       "primary": "bb_bench",
+       "sets": 3,
+       "reps": [
+        5,
+        5
+       ],
+       "rule": "novice_linear",
+       "rest_s": 180
+      },
+      {
+       "pattern": "hpull",
+       "primary": "bb_row",
+       "sets": 3,
+       "reps": [
+        6,
+        8
+       ],
+       "rule": "novice_linear",
+       "rest_s": 150
+      },
+      {
+       "pattern": "core",
+       "primary": "plank",
+       "sets": 3,
+       "reps": [
+        30,
+        60
+       ],
+       "rule": "timed_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Full Body B",
+     "slots": [
+      {
+       "pattern": "squat",
+       "primary": "bb_front_squat",
+       "sets": 3,
+       "reps": [
+        6,
+        8
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "vpress",
+       "primary": "bb_ohp",
+       "sets": 3,
+       "reps": [
+        5,
+        5
+       ],
+       "rule": "novice_linear",
+       "rest_s": 180
+      },
+      {
+       "pattern": "hinge",
+       "primary": "bb_deadlift",
+       "sets": 1,
+       "reps": [
+        5,
+        5
+       ],
+       "rule": "novice_linear",
+       "rest_s": 240
+      },
+      {
+       "pattern": "hpull",
+       "primary": "inverted_row",
+       "sets": 3,
+       "reps": [
+        8,
+        12
+       ],
+       "rule": "rep_progression",
+       "rest_s": 120
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "bb_ul4",
+   "name": "Garage Upper / Lower 4\u00d7",
+   "goals": [
+    "strength",
+    "muscle"
+   ],
+   "experience": [
+    "intermediate",
+    "advanced"
+   ],
+   "days_per_week": 4,
+   "equipment": [
+    "home_barbell"
+   ],
+   "block_weeks": 12,
+   "structure": "weekly",
+   "summary": "The flagship UL4, machine-free: every machine slot resolved to its barbell/bodyweight swap.",
+   "sessions": [
+    {
+     "name": "Upper \u2014 Strength",
+     "slots": [
+      {
+       "pattern": "hpress",
+       "primary": "bb_bench",
+       "scheme": "top_set_backoff",
+       "top": {
+        "sets": 1,
+        "reps": [
+         4,
+         6
+        ]
+       },
+       "backoff": {
+        "sets": 3,
+        "reps": [
+         6,
+         8
+        ],
+        "pct_of_top": 0.85
+       },
+       "rule": "top_set_backoff",
+       "rest_s": 180
+      },
+      {
+       "pattern": "hpull",
+       "primary": "bb_row",
+       "sets": 4,
+       "reps": [
+        6,
+        8
+       ],
+       "rule": "double_progression",
+       "rest_s": 150
+      },
+      {
+       "pattern": "vpress",
+       "primary": "bb_ohp",
+       "sets": 3,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "vpull",
+       "primary": "pullup",
+       "sets": 3,
+       "reps": [
+        5,
+        10
+       ],
+       "rule": "rep_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "biceps",
+       "primary": "bb_curl",
+       "sets": 2,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Lower \u2014 Strength",
+     "slots": [
+      {
+       "pattern": "squat",
+       "primary": "bb_back_squat",
+       "scheme": "top_set_backoff",
+       "top": {
+        "sets": 1,
+        "reps": [
+         4,
+         6
+        ]
+       },
+       "backoff": {
+        "sets": 3,
+        "reps": [
+         6,
+         8
+        ],
+        "pct_of_top": 0.85
+       },
+       "rule": "top_set_backoff",
+       "rest_s": 180
+      },
+      {
+       "pattern": "hinge",
+       "primary": "bb_rdl",
+       "sets": 3,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 180
+      },
+      {
+       "pattern": "lunge",
+       "primary": "bb_lunge",
+       "sets": 3,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "calf",
+       "primary": "bw_calf_raise",
+       "sets": 3,
+       "reps": [
+        12,
+        20
+       ],
+       "rule": "rep_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "core",
+       "primary": "plank",
+       "sets": 3,
+       "reps": [
+        30,
+        60
+       ],
+       "rule": "timed_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Upper \u2014 Volume",
+     "slots": [
+      {
+       "pattern": "hpress",
+       "primary": "bb_incline_bench",
+       "sets": 4,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpull",
+       "primary": "inverted_row",
+       "sets": 4,
+       "reps": [
+        8,
+        12
+       ],
+       "rule": "rep_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "triceps",
+       "primary": "skullcrusher",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "biceps",
+       "primary": "bb_curl",
+       "sets": 3,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "rear_delt",
+       "primary": "band_pull_apart",
+       "sets": 3,
+       "reps": [
+        15,
+        20
+       ],
+       "rule": "rep_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Lower \u2014 Volume",
+     "slots": [
+      {
+       "pattern": "squat",
+       "primary": "bb_front_squat",
+       "sets": 4,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 180
+      },
+      {
+       "pattern": "glute_iso",
+       "primary": "hip_thrust",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "hinge",
+       "primary": "bb_rdl",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "calf",
+       "primary": "bw_calf_raise",
+       "sets": 3,
+       "reps": [
+        15,
+        20
+       ],
+       "rule": "rep_progression",
+       "rest_s": 75
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "db_fb3",
+   "name": "Dumbbell Full-Body 3\u00d7",
+   "goals": [
+    "muscle",
+    "general",
+    "strength"
+   ],
+   "experience": [
+    "new",
+    "returning",
+    "intermediate"
+   ],
+   "days_per_week": 3,
+   "equipment": [
+    "dumbbell"
+   ],
+   "block_weeks": 12,
+   "structure": "weekly",
+   "summary": "Dumbbells + bench. Double progression throughout \u2014 DB jumps are big, so reps do the early work.",
+   "sessions": [
+    {
+     "name": "Full Body 1",
+     "slots": [
+      {
+       "pattern": "squat",
+       "primary": "goblet_squat",
+       "sets": 3,
+       "reps": [
+        8,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpress",
+       "primary": "db_bench",
+       "sets": 3,
+       "reps": [
+        8,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpull",
+       "primary": "db_row",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "core",
+       "primary": "plank",
+       "sets": 3,
+       "reps": [
+        30,
+        60
+       ],
+       "rule": "timed_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Full Body 2",
+     "slots": [
+      {
+       "pattern": "hinge",
+       "primary": "db_rdl",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "vpress",
+       "primary": "db_shoulder_press",
+       "sets": 3,
+       "reps": [
+        8,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "lunge",
+       "primary": "db_lunge",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "biceps",
+       "primary": "db_curl",
+       "sets": 2,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Full Body 3",
+     "slots": [
+      {
+       "pattern": "lunge",
+       "primary": "bulgarian_ss",
+       "sets": 3,
+       "reps": [
+        8,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpress",
+       "primary": "db_incline_press",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpull",
+       "primary": "db_row",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "triceps",
+       "primary": "db_oh_triceps",
+       "sets": 2,
+       "reps": [
+        10,
+        15
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "db_ul4",
+   "name": "Dumbbell Upper / Lower 4\u00d7",
+   "goals": [
+    "muscle"
+   ],
+   "experience": [
+    "intermediate"
+   ],
+   "days_per_week": 4,
+   "equipment": [
+    "dumbbell"
+   ],
+   "block_weeks": 12,
+   "structure": "weekly",
+   "summary": "Four-day dumbbell split for home lifters who outgrew full-body.",
+   "sessions": [
+    {
+     "name": "Upper 1",
+     "slots": [
+      {
+       "pattern": "hpress",
+       "primary": "db_bench",
+       "sets": 4,
+       "reps": [
+        8,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpull",
+       "primary": "db_row",
+       "sets": 4,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "vpress",
+       "primary": "db_shoulder_press",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "biceps",
+       "primary": "db_curl",
+       "sets": 2,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "triceps",
+       "primary": "db_oh_triceps",
+       "sets": 2,
+       "reps": [
+        10,
+        15
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Lower 1",
+     "slots": [
+      {
+       "pattern": "squat",
+       "primary": "goblet_squat",
+       "sets": 4,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hinge",
+       "primary": "db_rdl",
+       "sets": 4,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "lunge",
+       "primary": "db_lunge",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "calf",
+       "primary": "db_calf_raise",
+       "sets": 3,
+       "reps": [
+        12,
+        15
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Upper 2",
+     "slots": [
+      {
+       "pattern": "hpress",
+       "primary": "db_incline_press",
+       "sets": 4,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpull",
+       "primary": "db_row",
+       "sets": 4,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "side_delt",
+       "primary": "lateral_raise",
+       "sets": 3,
+       "reps": [
+        12,
+        15
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "rear_delt",
+       "primary": "rear_delt_fly",
+       "sets": 3,
+       "reps": [
+        15,
+        20
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "triceps",
+       "primary": "diamond_pushup",
+       "sets": 2,
+       "reps": [
+        8,
+        15
+       ],
+       "rule": "rep_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Lower 2",
+     "slots": [
+      {
+       "pattern": "lunge",
+       "primary": "bulgarian_ss",
+       "sets": 4,
+       "reps": [
+        8,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hinge",
+       "primary": "bw_glute_bridge",
+       "sets": 3,
+       "reps": [
+        12,
+        15
+       ],
+       "rule": "rep_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "ham_iso",
+       "primary": "db_ham_curl",
+       "sets": 3,
+       "reps": [
+        8,
+        12
+       ],
+       "rule": "rep_progression",
+       "rest_s": 75
+      },
+      {
+       "pattern": "calf",
+       "primary": "db_calf_raise",
+       "sets": 3,
+       "reps": [
+        15,
+        20
+       ],
+       "rule": "double_progression",
+       "rest_s": 75
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "db_cut3",
+   "name": "Dumbbell Deficit 3\u00d7",
+   "goals": [
+    "fat_loss"
+   ],
+   "experience": [
+    "new",
+    "returning",
+    "intermediate"
+   ],
+   "days_per_week": 3,
+   "equipment": [
+    "dumbbell"
+   ],
+   "block_weeks": 12,
+   "structure": "weekly",
+   "summary": "The deficit program for the home gym: strength defense + swings.",
+   "sessions": [
+    {
+     "name": "Full Body 1",
+     "slots": [
+      {
+       "pattern": "squat",
+       "primary": "goblet_squat",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpress",
+       "primary": "db_bench",
+       "sets": 3,
+       "reps": [
+        8,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpull",
+       "primary": "db_row",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "cond",
+       "primary": "kb_swing",
+       "scheme": "conditioning",
+       "duration_min": 8,
+       "rule": "timed_progression",
+       "rest_s": 60,
+       "note": "EMOM 8 \u00d7 12"
+      }
+     ]
+    },
+    {
+     "name": "Full Body 2",
+     "slots": [
+      {
+       "pattern": "hinge",
+       "primary": "db_rdl",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "vpress",
+       "primary": "db_shoulder_press",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "lunge",
+       "primary": "db_lunge",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "cond",
+       "primary": "jump_rope",
+       "scheme": "conditioning",
+       "duration_min": 8,
+       "rule": "timed_progression",
+       "rest_s": 60,
+       "note": "6\u00d7 45s on / 30s off"
+      }
+     ]
+    },
+    {
+     "name": "Full Body 3",
+     "slots": [
+      {
+       "pattern": "lunge",
+       "primary": "bulgarian_ss",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpress",
+       "primary": "db_incline_press",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpull",
+       "primary": "db_row",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "cond",
+       "primary": "burpee",
+       "scheme": "conditioning",
+       "duration_min": 6,
+       "rule": "timed_progression",
+       "rest_s": 60,
+       "note": "5\u00d7 8 reps, easy pace"
+      }
+     ]
+    }
+   ],
+   "notes": "Same deficit progression caps as cut3_fullbody."
+  },
+  {
+   "id": "bw_fb3",
+   "name": "Bodyweight Foundations 3\u00d7",
+   "goals": [
+    "general",
+    "muscle",
+    "fat_loss"
+   ],
+   "experience": [
+    "new",
+    "returning"
+   ],
+   "days_per_week": 3,
+   "equipment": [
+    "bodyweight"
+   ],
+   "block_weeks": 12,
+   "structure": "alternate_AB",
+   "summary": "No equipment. Rep progression into harder variations \u2014 the variation ladder IS the barbell.",
+   "sessions": [
+    {
+     "name": "Full Body A",
+     "slots": [
+      {
+       "pattern": "squat",
+       "primary": "bw_squat",
+       "sets": 3,
+       "reps": [
+        10,
+        15
+       ],
+       "rule": "rep_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpress",
+       "primary": "pushup",
+       "sets": 3,
+       "reps": [
+        8,
+        15
+       ],
+       "rule": "rep_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpull",
+       "primary": "towel_row",
+       "sets": 3,
+       "reps": [
+        8,
+        12
+       ],
+       "rule": "rep_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "core",
+       "primary": "plank",
+       "sets": 3,
+       "reps": [
+        30,
+        60
+       ],
+       "rule": "timed_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Full Body B",
+     "slots": [
+      {
+       "pattern": "squat",
+       "primary": "bw_split_squat",
+       "sets": 3,
+       "reps": [
+        8,
+        12
+       ],
+       "rule": "rep_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "vpress",
+       "primary": "pike_pushup",
+       "sets": 3,
+       "reps": [
+        6,
+        12
+       ],
+       "rule": "rep_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hinge",
+       "primary": "bw_glute_bridge",
+       "sets": 3,
+       "reps": [
+        12,
+        15
+       ],
+       "rule": "rep_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "calf",
+       "primary": "bw_calf_raise",
+       "sets": 3,
+       "reps": [
+        12,
+        20
+       ],
+       "rule": "rep_progression",
+       "rest_s": 75
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "bw4",
+   "name": "Bodyweight 4\u00d7 Split",
+   "goals": [
+    "muscle",
+    "general"
+   ],
+   "experience": [
+    "intermediate"
+   ],
+   "days_per_week": 4,
+   "equipment": [
+    "bodyweight"
+   ],
+   "block_weeks": 12,
+   "structure": "weekly",
+   "summary": "Upper/lower bodyweight split with advanced progressions (archer push-ups, pistols, nordics).",
+   "sessions": [
+    {
+     "name": "Upper 1",
+     "slots": [
+      {
+       "pattern": "hpress",
+       "primary": "pushup_deficit",
+       "sets": 4,
+       "reps": [
+        8,
+        15
+       ],
+       "rule": "rep_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpull",
+       "primary": "inverted_row",
+       "sets": 4,
+       "reps": [
+        8,
+        12
+       ],
+       "rule": "rep_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "vpress",
+       "primary": "pike_pushup",
+       "sets": 3,
+       "reps": [
+        6,
+        12
+       ],
+       "rule": "rep_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "triceps",
+       "primary": "diamond_pushup",
+       "sets": 2,
+       "reps": [
+        8,
+        15
+       ],
+       "rule": "rep_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Lower 1",
+     "slots": [
+      {
+       "pattern": "squat",
+       "primary": "bw_split_squat",
+       "sets": 4,
+       "reps": [
+        10,
+        15
+       ],
+       "rule": "rep_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hinge",
+       "primary": "bw_hip_hinge",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "rep_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hinge",
+       "primary": "bw_glute_bridge",
+       "sets": 3,
+       "reps": [
+        15,
+        20
+       ],
+       "rule": "rep_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "calf",
+       "primary": "bw_calf_raise",
+       "sets": 4,
+       "reps": [
+        12,
+        20
+       ],
+       "rule": "rep_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Upper 2",
+     "slots": [
+      {
+       "pattern": "hpress",
+       "primary": "pushup_archer",
+       "sets": 3,
+       "reps": [
+        4,
+        8
+       ],
+       "rule": "rep_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "vpull",
+       "primary": "negative_pullup",
+       "sets": 4,
+       "reps": [
+        3,
+        6
+       ],
+       "rule": "rep_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpull",
+       "primary": "towel_row",
+       "sets": 3,
+       "reps": [
+        10,
+        15
+       ],
+       "rule": "rep_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "core",
+       "primary": "plank",
+       "sets": 3,
+       "reps": [
+        45,
+        75
+       ],
+       "rule": "timed_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Lower 2",
+     "slots": [
+      {
+       "pattern": "squat",
+       "primary": "pistol_prog",
+       "sets": 3,
+       "reps": [
+        3,
+        8
+       ],
+       "rule": "rep_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hinge",
+       "primary": "nordic_prog",
+       "sets": 3,
+       "reps": [
+        3,
+        6
+       ],
+       "rule": "rep_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "lunge",
+       "primary": "step_up",
+       "sets": 3,
+       "reps": [
+        10,
+        15
+       ],
+       "rule": "rep_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "cond",
+       "primary": "burpee",
+       "sets": 3,
+       "reps": [
+        8,
+        12
+       ],
+       "rule": "rep_progression",
+       "rest_s": 120
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "gen3_mixed",
+   "name": "Balanced 3\u00d7 (Strength + Conditioning)",
+   "goals": [
+    "general"
+   ],
+   "experience": [
+    "new",
+    "returning",
+    "intermediate"
+   ],
+   "days_per_week": 3,
+   "equipment": [
+    "full_gym"
+   ],
+   "block_weeks": 12,
+   "structure": "weekly",
+   "summary": "For 'I just want to be fit': two strength-led days, one mixed day, conditioning woven in. Optimized for feeling good, not maxing.",
+   "sessions": [
+    {
+     "name": "Strength A",
+     "slots": [
+      {
+       "pattern": "squat",
+       "primary": "bb_back_squat",
+       "sets": 3,
+       "reps": [
+        6,
+        8
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpress",
+       "primary": "db_bench",
+       "sets": 3,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpull",
+       "primary": "cable_row",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "core",
+       "primary": "plank",
+       "sets": 2,
+       "reps": [
+        30,
+        60
+       ],
+       "rule": "timed_progression",
+       "rest_s": 75
+      }
+     ]
+    },
+    {
+     "name": "Strength B",
+     "slots": [
+      {
+       "pattern": "hinge",
+       "primary": "bb_rdl",
+       "sets": 3,
+       "reps": [
+        8,
+        10
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "vpress",
+       "primary": "db_shoulder_press",
+       "sets": 3,
+       "reps": [
+        8,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "vpull",
+       "primary": "lat_pulldown",
+       "sets": 3,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "carry",
+       "primary": "farmer_carry",
+       "sets": 2,
+       "reps": [
+        30,
+        45
+       ],
+       "rule": "timed_progression",
+       "rest_s": 90,
+       "note": "seconds"
+      }
+     ]
+    },
+    {
+     "name": "Mixed",
+     "slots": [
+      {
+       "pattern": "squat",
+       "primary": "goblet_squat",
+       "sets": 2,
+       "reps": [
+        10,
+        12
+       ],
+       "rule": "double_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "hpress",
+       "primary": "pushup",
+       "sets": 2,
+       "reps": [
+        10,
+        15
+       ],
+       "rule": "rep_progression",
+       "rest_s": 120
+      },
+      {
+       "pattern": "cond",
+       "primary": "bike_intervals",
+       "scheme": "conditioning",
+       "duration_min": 12,
+       "rule": "timed_progression",
+       "rest_s": 60,
+       "note": "6\u00d7 1min brisk / 1min easy"
+      },
+      {
+       "pattern": "cond",
+       "primary": "incline_walk",
+       "scheme": "conditioning",
+       "duration_min": 10,
+       "rule": "timed_progression",
+       "rest_s": 60,
+       "note": "cool-down pace"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

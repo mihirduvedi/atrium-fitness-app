@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en" data-mode="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Atrium v2 — Day & Night Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   ATRIUM v2 — humanized
+   Day: Notion's warm-gray ink on paper white. Night: Oura's
+   warm graphite with warm off-white text. No glow. No green.
+   Chrome is monochrome ink; color belongs only to data:
+   dusty blue (readiness, charts, checks), sand (sleep,
+   secondary series), soft coral (PRs and watch-outs).
+   Type: quiet serif display · system body · mono data rows ·
+   light hero numerals.
+   ============================================================ */
+
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+:root, [data-mode="light"] {
+  --bg:#FBFBF9; --surface:#FFFFFF; --surface2:#F2F1ED;
+  --line:#EAE8E3; --line-strong:#D9D6CF;
+  --text:#37352F; --muted:#787774; --faint:#B3AFA7;
+  --action:#37352F; --action-ink:#FFFFFF;
+  --data-blue:#6E87A8; --data-sand:#B99F6F; --stamp:#C06E54;
+  --good:#6E87A8; --warn:#C06E54;
+  --btn-shadow:0 1px 2px rgba(55,53,47,.15);
+}
+[data-mode="dark"] {
+  --bg:#1A1918; --surface:#22211F; --surface2:#2C2B28;
+  --line:rgba(235,232,224,.08); --line-strong:rgba(235,232,224,.17);
+  --text:#EBE8E0; --muted:#A39F97; --faint:#6E6A63;
+  --action:#EBE8E0; --action-ink:#1A1918;
+  --data-blue:#8FA9CD; --data-sand:#D3B788; --stamp:#D08D72;
+  --good:#8FA9CD; --warn:#D08D72;
+  --btn-shadow:0 1px 2px rgba(0,0,0,.3);
+}
+:root {
+  --radius:12px; --radius-sm:8px;
+  --font-display:'Source Serif 4',Georgia,serif;
+  --font-body:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+  --font-num:'IBM Plex Mono',ui-monospace,'SF Mono',monospace;
+  --display-weight:600; --display-spacing:-0.01em;
+  --card-border:1px solid var(--line);
+  --label-transform:uppercase; --label-spacing:.08em; --label-weight:600; --label-size:10px;
+}
+
+/* ---------- EXPLORER CHROME ---------- */
+body { background:var(--bg); font-family:var(--font-body); color:var(--text); min-height:100vh; transition:background .35s ease,color .35s ease; padding:28px 16px 60px; }
+.explorer { max-width:1080px; margin:0 auto; }
+.exp-head { text-align:center; margin-bottom:18px; }
+.exp-head .kicker { font-size:var(--label-size); letter-spacing:var(--label-spacing); text-transform:var(--label-transform); font-weight:var(--label-weight); color:var(--muted); margin-bottom:8px; }
+.exp-head h1 { font-family:var(--font-display); font-weight:600; letter-spacing:-0.01em; font-size:clamp(22px,3.4vw,30px); }
+.exp-head p { color:var(--muted); font-size:13.5px; margin-top:7px; max-width:600px; margin-left:auto; margin-right:auto; line-height:1.55; }
+
+.mode-toggle { display:flex; justify-content:center; margin-bottom:26px; }
+.mode-toggle .wrap { display:flex; background:var(--surface2); border:1px solid var(--line); border-radius:999px; padding:4px; gap:4px; }
+.mode-toggle button { display:flex; align-items:center; gap:8px; border:none; background:none; cursor:pointer; padding:10px 22px; border-radius:999px; font-family:var(--font-body); font-weight:600; font-size:13.5px; color:var(--muted); transition:all .2s; }
+.mode-toggle button.on { background:var(--surface); color:var(--text); box-shadow:0 2px 10px rgba(0,0,0,.10); }
+.mode-toggle svg { width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+
+.stage { display:flex; gap:34px; justify-content:center; align-items:flex-start; flex-wrap:wrap; }
+.side-notes { max-width:300px; font-size:13px; line-height:1.55; color:var(--muted); }
+.side-notes h3 { font-family:var(--font-display); font-weight:600; color:var(--text); font-size:17px; margin-bottom:8px; }
+.side-notes ul { margin:10px 0 0 16px; }
+.side-notes li { margin-bottom:7px; }
+.side-notes .try { margin-top:16px; padding:13px 15px; border:var(--card-border); border-radius:var(--radius); background:var(--surface); color:var(--text); }
+.side-notes .try b { display:block; margin-bottom:5px; font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
+.side-notes .try ol { margin-left:16px; color:var(--muted); }
+@media (max-width:900px){ .side-notes{ max-width:380px; } }
+
+/* ---------- PHONE ---------- */
+.phone { width:375px; height:780px; flex-shrink:0; border-radius:48px; padding:12px; background:#0a0a0c; box-shadow:0 30px 80px -20px rgba(0,0,0,.45), inset 0 0 0 2px #2a2a2e; position:relative; }
+@media (max-width:420px){ .phone{ width:100%; max-width:375px; height:740px; } }
+.screen-wrap { width:100%; height:100%; border-radius:38px; overflow:hidden; background:var(--bg); position:relative; display:flex; flex-direction:column; transition:background .35s ease; }
+.notch { position:absolute; top:12px; left:50%; transform:translateX(-50%); width:118px; height:30px; background:#0a0a0c; border-radius:18px; z-index:60; }
+.statusbar { height:48px; flex-shrink:0; display:flex; align-items:flex-end; justify-content:space-between; padding:0 26px 4px; font-size:13px; font-weight:600; }
+.screens { flex:1; position:relative; overflow:hidden; }
+.app-screen { position:absolute; inset:0; overflow-y:auto; padding:10px 20px 92px; display:none; scrollbar-width:none; }
+.app-screen::-webkit-scrollbar{ display:none; }
+.app-screen.on { display:block; animation:fadein .22s ease; }
+@keyframes fadein { from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;} }
+
+/* ---------- SHARED ---------- */
+.label { font-size:var(--label-size); letter-spacing:var(--label-spacing); text-transform:var(--label-transform); font-weight:var(--label-weight); color:var(--muted); }
+.h-display { font-family:var(--font-display); font-weight:var(--display-weight); letter-spacing:var(--display-spacing); }
+.num { font-family:var(--font-num); font-variant-numeric:tabular-nums; letter-spacing:-0.01em; }
+.card { background:var(--surface); border:var(--card-border); border-radius:var(--radius); padding:18px; margin-bottom:14px; transition:background .35s,border-color .35s; }
+.btn { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:14px; border:none; cursor:pointer; border-radius:var(--radius-sm); background:var(--action); color:var(--action-ink); font-family:var(--font-body); font-weight:600; font-size:14.5px; box-shadow:var(--btn-shadow); transition:transform .1s ease,opacity .15s; }
+.btn:active { transform:translateY(1px); }
+.btn:hover { opacity:.92; }
+.btn.ghost { background:none; border:1px solid var(--line-strong); color:var(--text); box-shadow:none; }
+.row { display:flex; align-items:center; justify-content:space-between; }
+.chip { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:var(--radius-sm); background:var(--surface); font-size:11.5px; font-weight:600; color:var(--muted); border:1px solid var(--line); }
+
+/* nav — active tab is ink, not colored */
+.tabbar { position:absolute; bottom:0; left:0; right:0; height:78px; z-index:50; background:color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter:blur(14px); border-top:1px solid var(--line); display:flex; align-items:center; justify-content:space-around; padding:0 8px 12px; }
+.tab { background:none; border:none; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px; color:var(--faint); font-family:var(--font-body); font-size:10px; font-weight:600; width:58px; padding-top:8px; }
+.tab svg { width:22px; height:22px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.tab.on { color:var(--text); }
+.tab.on svg { stroke:var(--text); }
+.tab-plus { width:52px; height:52px; border-radius:50%; background:var(--action); color:var(--action-ink); border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; margin-top:-4px; box-shadow:var(--btn-shadow); }
+.tab-plus svg { width:24px; height:24px; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; }
+
+/* ---------- SCREENS ---------- */
+.greet { padding:10px 2px 16px; }
+.greet .date { margin-bottom:6px; }
+.greet h2 { font-size:25px; }
+.readiness { display:flex; align-items:center; gap:18px; }
+.ring { position:relative; width:88px; height:88px; flex-shrink:0; }
+.ring svg { transform:rotate(-90deg); }
+.ring .track { stroke:var(--surface2); }
+.ring .fill { stroke:var(--data-blue); stroke-linecap:round; transition:stroke .35s; }
+.ring .rnum { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+.ring .rnum b { font-size:25px; font-family:var(--font-body); font-weight:300; letter-spacing:-0.02em; font-variant-numeric:tabular-nums; }
+.ring .rnum span { font-size:8.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.09em; font-weight:600; }
+.readiness .r-copy h3 { font-size:15px; margin-bottom:4px; }
+.readiness .r-copy p { font-size:12.5px; color:var(--muted); line-height:1.5; }
+.wcard .label { margin-bottom:7px; display:block; }
+.wcard h3 { font-size:20px; margin-bottom:3px; }
+.wcard .meta { font-size:12.5px; color:var(--muted); margin-bottom:13px; }
+.ex-preview { list-style:none; margin-bottom:15px; }
+.ex-preview li { display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid var(--line); font-size:13.5px; }
+.ex-preview li:last-child { border-bottom:none; }
+.ex-preview li span:last-child { color:var(--muted); font-family:var(--font-num); font-size:12px; }
+.mini-stats { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.mini-stats .card { margin-bottom:14px; }
+.mini-stats b { font-size:26px; font-family:var(--font-body); font-weight:300; letter-spacing:-0.02em; font-variant-numeric:tabular-nums; display:block; margin-top:3px; }
+.mini-stats small { font-size:11px; color:var(--muted); }
+.consist { display:flex; gap:6px; margin-top:9px; }
+.consist i { flex:1; height:5px; border-radius:3px; background:var(--surface2); }
+.consist i.done { background:var(--data-blue); }
+.teaser { display:flex; gap:13px; align-items:center; cursor:pointer; }
+.teaser .dot { width:38px; height:38px; border-radius:50%; background:var(--surface2); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:15px; color:var(--muted); }
+.teaser p { font-size:13px; line-height:1.45; }
+.teaser small { color:var(--muted); font-size:11.5px; }
+
+.wk-head { display:flex; justify-content:space-between; align-items:center; padding:10px 2px 14px; }
+.wk-head .timer { font-family:var(--font-num); font-size:14px; font-weight:500; color:var(--muted); }
+.finish-link { background:none; border:1px solid var(--line-strong); color:var(--text); border-radius:var(--radius-sm); padding:7px 15px; font-size:12px; font-weight:600; cursor:pointer; font-family:var(--font-body); }
+.ex-block h3 { font-size:18px; }
+.ex-block .ex-sub { font-size:11.5px; color:var(--muted); margin:3px 0 13px; }
+.set-grid .sg-head, .set-row { display:grid; grid-template-columns:34px 1fr 1fr 1fr 40px; gap:8px; align-items:center; }
+.set-grid .sg-head { font-size:9.5px; color:var(--faint); letter-spacing:.08em; text-transform:uppercase; font-weight:600; padding-bottom:9px; }
+.set-row { padding:8px 0; border-top:1px solid var(--line); font-family:var(--font-num); font-size:14px; font-variant-numeric:tabular-nums; }
+.set-row .prev { color:var(--faint); font-size:11.5px; }
+.set-row .val { background:var(--surface2); border-radius:var(--radius-sm); padding:9px 0; text-align:center; font-weight:500; }
+.set-row.done-row .val { opacity:.5; }
+.check { width:32px; height:32px; border-radius:50%; border:1.5px solid var(--line-strong); background:none; cursor:pointer; display:flex; align-items:center; justify-content:center; color:transparent; transition:all .15s; justify-self:end; }
+.check svg { width:15px; height:15px; stroke:currentColor; stroke-width:3; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+.check.ok { background:var(--data-blue); border-color:var(--data-blue); color:#fff; }
+[data-mode="dark"] .check.ok { color:#1A1918; }
+.rest-banner { position:absolute; left:20px; right:20px; bottom:90px; z-index:55; background:var(--surface); border:1px solid var(--line-strong); border-radius:var(--radius); padding:13px 17px; display:none; align-items:center; justify-content:space-between; box-shadow:0 16px 34px -14px rgba(0,0,0,.25); }
+.rest-banner.show { display:flex; animation:fadein .2s; }
+.rest-banner b { font-family:var(--font-body); font-weight:300; font-size:23px; letter-spacing:-0.02em; font-variant-numeric:tabular-nums; }
+.rest-banner button { background:none; border:none; color:var(--muted); text-decoration:underline; text-underline-offset:2px; font-weight:600; font-size:12.5px; cursor:pointer; font-family:var(--font-body); }
+.upnext { opacity:.78; }
+.upnext .un-row { display:flex; justify-content:space-between; padding:11px 0; border-bottom:1px solid var(--line); font-size:13.5px; }
+.upnext .un-row:last-child{ border:none; }
+.upnext .un-row span:last-child { color:var(--muted); font-size:12px; font-family:var(--font-num); }
+
+.sum-hero { text-align:center; padding:28px 0 20px; }
+.sum-hero .big { font-size:28px; margin:8px 0 6px; }
+.sum-hero p { color:var(--muted); font-size:13px; }
+.pr-card { border:1.5px solid var(--stamp); }
+.pr-card .label { color:var(--stamp); margin-bottom:5px; display:block; }
+.pr-card h3 { font-size:18px; }
+.pr-card p { font-size:12.5px; color:var(--muted); margin-top:4px; }
+.sum-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:14px; }
+.sum-stats .card { margin:0; text-align:center; padding:14px 6px; }
+.sum-stats b { font-size:20px; font-family:var(--font-body); font-weight:300; letter-spacing:-0.02em; font-variant-numeric:tabular-nums; display:block; }
+.sum-stats small { font-size:9.5px; color:var(--muted); }
+.tagrow { display:flex; justify-content:space-between; margin-top:11px; }
+.tagrow button { width:46px; height:46px; border-radius:50%; border:1px solid var(--line); background:var(--surface2); font-size:20px; cursor:pointer; transition:all .12s; }
+.tagrow button.sel { border-color:var(--text); transform:scale(1.1); }
+
+.seg { display:flex; background:var(--surface2); border-radius:var(--radius-sm); padding:3px; margin:6px 0 16px; }
+.seg button { flex:1; border:none; background:none; padding:8px; font-size:12.5px; font-weight:600; color:var(--muted); border-radius:6px; cursor:pointer; font-family:var(--font-body); }
+.seg button.on { background:var(--surface); color:var(--text); box-shadow:0 1px 5px rgba(0,0,0,.10); }
+.chart-card h3 { font-size:15px; }
+.chart-card .delta { font-size:12px; color:var(--data-blue); font-weight:600; }
+.chart-svg { width:100%; height:130px; margin-top:10px; }
+.chart-svg .grid-l { stroke:var(--line); stroke-width:1; }
+.chart-svg .line { stroke:var(--data-blue); stroke-width:2.2; fill:none; stroke-linecap:round; }
+.chart-svg .area { fill:var(--data-blue); opacity:.07; }
+.chart-svg .pt { fill:var(--stamp); }
+.plate-viz { display:flex; align-items:flex-end; gap:12px; height:110px; margin-top:14px; }
+.plate-stack { flex:1; display:flex; flex-direction:column-reverse; align-items:center; gap:3px; }
+.plate-stack i { display:block; width:100%; height:9px; border-radius:3px; background:var(--data-sand); opacity:.85; }
+.plate-stack small { margin-top:7px; font-size:9.5px; color:var(--muted); font-family:var(--font-num); }
+
+.coach-ctx { display:flex; gap:8px; flex-wrap:wrap; padding:6px 0 14px; }
+.bubble { max-width:84%; padding:13px 15px; border-radius:var(--radius); font-size:13.5px; line-height:1.55; margin-bottom:10px; }
+.bubble.ai { background:var(--surface); border:var(--card-border); border-bottom-left-radius:4px; }
+.bubble.me { background:var(--action); color:var(--action-ink); margin-left:auto; border-bottom-right-radius:4px; }
+.sugg { display:flex; gap:8px; overflow-x:auto; padding:6px 0 10px; scrollbar-width:none; }
+.sugg::-webkit-scrollbar{display:none;}
+.sugg button { flex-shrink:0; padding:9px 15px; border-radius:var(--radius-sm); border:1px solid var(--line-strong); background:var(--surface); color:var(--text); font-size:12px; font-weight:600; cursor:pointer; font-family:var(--font-body); }
+.review-pin { cursor:pointer; }
+.review-pin .row b { font-size:14.5px; }
+.review-pin .arrow { color:var(--muted); font-weight:700; }
+
+.rev-hero { padding:20px 0 10px; }
+.rev-hero .label{ margin-bottom:9px; display:block; }
+.rev-hero h2 { font-size:23px; line-height:1.25; margin-bottom:9px; }
+.rev-hero p { color:var(--muted); font-size:13px; line-height:1.55; }
+.hl { display:flex; gap:13px; align-items:flex-start; padding:13px 0; border-bottom:1px solid var(--line); }
+.hl:last-child{border:none;}
+.hl .ic { width:30px; height:30px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:13px; background:var(--surface2); color:var(--muted); }
+.hl b { font-size:13.5px; display:block; margin-bottom:3px; }
+.hl p { font-size:12.5px; color:var(--muted); line-height:1.5; }
+.watch-card { border:1.5px solid var(--stamp); }
+.watch-card .ic { color:var(--stamp) !important; }
+.diff { font-family:var(--font-num); font-size:12.5px; font-variant-numeric:tabular-nums; }
+.diff .d-row { display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--line); }
+.diff .d-row:last-child{border:none;}
+.diff .minus { color:var(--warn); } .diff .plus { color:var(--data-blue); }
+.applied { background:var(--data-blue) !important; color:#fff !important; }
+[data-mode="dark"] .applied { color:#1A1918 !important; }
+
+.prof-row { display:flex; justify-content:space-between; align-items:center; padding:15px 2px; border-bottom:1px solid var(--line); font-size:14px; cursor:pointer; }
+.prof-row:last-child { border:none; }
+.prof-row small { color:var(--muted); }
+.avatar { width:54px; height:54px; border-radius:50%; background:var(--surface2); display:flex; align-items:center; justify-content:center; font-family:var(--font-display); font-weight:600; font-size:19px; color:var(--text); border:var(--card-border); }
+.back-link { background:none; border:none; color:var(--muted); font-size:13px; font-weight:600; cursor:pointer; padding:10px 0; font-family:var(--font-body); display:flex; align-items:center; gap:5px; }
+
+/* ---------- ONBOARDING ---------- */
+.ob-top { display:flex; justify-content:space-between; align-items:center; padding:54px 2px 6px; }
+.ob-dots { display:flex; gap:6px; }
+.ob-dots i { width:22px; height:4px; border-radius:2px; background:var(--surface2); }
+.ob-dots i.on { background:var(--text); }
+.ob-skip { background:none; border:none; color:var(--muted); font-size:12.5px; font-weight:600; cursor:pointer; font-family:var(--font-body); }
+.ob-step { display:none; padding-top:20px; }
+.ob-step.show { display:block; animation:fadein .25s ease; }
+.ob-step .label { display:block; margin-bottom:10px; }
+.ob-step h2 { font-family:var(--font-display); font-weight:var(--display-weight); letter-spacing:var(--display-spacing); font-size:24px; line-height:1.25; margin-bottom:6px; }
+.ob-step .sub { color:var(--muted); font-size:13px; line-height:1.55; margin-bottom:22px; }
+.ob-opt { display:flex; justify-content:space-between; align-items:center; width:100%; text-align:left; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; margin-bottom:10px; cursor:pointer; font-family:var(--font-body); color:var(--text); transition:border-color .15s; }
+.ob-opt b { font-size:14.5px; font-weight:600; display:block; }
+.ob-opt small { font-size:11.5px; color:var(--muted); display:block; margin-top:2px; }
+.ob-opt .tick { width:22px; height:22px; border-radius:50%; border:1.5px solid var(--line-strong); flex-shrink:0; margin-left:12px; }
+.ob-opt.sel { border:1.5px solid var(--text); }
+.ob-opt.sel .tick { background:var(--text); border-color:var(--text); }
+.hk-badge { width:64px; height:64px; border-radius:18px; background:var(--surface2); display:flex; align-items:center; justify-content:center; margin-bottom:18px; }
+.hk-badge svg { width:30px; height:30px; stroke:var(--text); fill:none; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+.ob-ready { text-align:left; }
+.ob-ready .sumchips { display:flex; gap:8px; flex-wrap:wrap; margin:4px 0 22px; }
+
+/* ---------- PAYWALL ---------- */
+.pw-close { position:absolute; top:74px; right:20px; z-index:5; width:30px; height:30px; border-radius:50%; border:none; background:var(--surface2); color:var(--muted); font-size:14px; cursor:pointer; }
+.pw-hero { padding:70px 0 14px; }
+.pw-hero h2 { font-family:var(--font-display); font-weight:var(--display-weight); letter-spacing:var(--display-spacing); font-size:26px; margin:8px 0 8px; }
+.pw-hero p { color:var(--muted); font-size:13px; line-height:1.55; }
+.pw-feats { margin:6px 0 16px; }
+.pw-feat { display:flex; gap:12px; align-items:flex-start; padding:11px 0; border-bottom:1px solid var(--line); }
+.pw-feat:last-child { border:none; }
+.pw-feat .ck { width:20px; height:20px; border-radius:50%; background:var(--surface2); flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+.pw-feat .ck svg { width:11px; height:11px; stroke:var(--text); stroke-width:2.6; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+.pw-feat b { font-size:13.5px; display:block; font-weight:600; }
+.pw-feat small { font-size:11.5px; color:var(--muted); }
+.plan { display:flex; justify-content:space-between; align-items:center; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:15px 17px; margin-bottom:10px; cursor:pointer; }
+.plan.sel { border:1.5px solid var(--text); }
+.plan .pl b { font-size:14.5px; font-weight:600; }
+.plan .pl small { display:block; font-size:11.5px; color:var(--muted); margin-top:2px; }
+.plan .badge { font-size:9.5px; letter-spacing:.06em; text-transform:uppercase; font-weight:700; background:var(--surface2); color:var(--muted); border-radius:5px; padding:4px 7px; }
+.plan .price { font-family:var(--font-body); font-weight:300; font-size:19px; letter-spacing:-0.01em; font-variant-numeric:tabular-nums; text-align:right; }
+.pw-fine { text-align:center; font-size:11px; color:var(--faint); margin-top:10px; line-height:1.5; }
+.pw-later { display:block; margin:14px auto 0; background:none; border:none; color:var(--muted); font-size:13px; font-weight:600; cursor:pointer; text-decoration:underline; text-underline-offset:3px; font-family:var(--font-body); }
+
+/* ---------- PROGRAM ---------- */
+.prog-bar { height:5px; border-radius:3px; background:var(--surface2); margin:12px 0 4px; overflow:hidden; }
+.prog-bar i { display:block; height:100%; width:25%; background:var(--data-blue); border-radius:3px; }
+.prog-meta { font-size:11px; color:var(--muted); }
+.wk-chips { display:flex; gap:8px; overflow-x:auto; padding:14px 0 4px; scrollbar-width:none; }
+.wk-chips::-webkit-scrollbar{ display:none; }
+.wk-chips button { flex-shrink:0; min-width:46px; padding:8px 0; border-radius:var(--radius-sm); border:1px solid var(--line); background:var(--surface); color:var(--muted); font-size:11.5px; font-weight:600; cursor:pointer; font-family:var(--font-num); }
+.wk-chips button.on { border:1.5px solid var(--text); color:var(--text); }
+.wk-chips button.done { color:var(--faint); }
+.day-row { display:flex; align-items:center; gap:13px; padding:14px 0; border-bottom:1px solid var(--line); cursor:default; }
+.day-row:last-child { border:none; }
+.day-row .d { width:38px; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--faint); font-weight:600; }
+.day-row .dn b { font-size:14px; font-weight:600; display:block; }
+.day-row .dn small { font-size:11.5px; color:var(--muted); }
+.day-row .st { margin-left:auto; }
+.day-row .st .donec { width:24px; height:24px; border-radius:50%; background:var(--data-blue); display:flex; align-items:center; justify-content:center; }
+.day-row .st .donec svg { width:11px; height:11px; stroke:#fff; stroke-width:3; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+[data-mode="dark"] .day-row .st .donec svg { stroke:#1A1918; }
+.day-row.today-row { cursor:pointer; }
+.day-row.today-row .dn b { font-family:var(--font-display); font-weight:var(--display-weight); font-size:15px; }
+.day-row .todaytag { font-size:9px; letter-spacing:.08em; text-transform:uppercase; font-weight:700; color:var(--text); border:1px solid var(--line-strong); border-radius:5px; padding:3px 7px; }
+.row-link { display:flex; justify-content:space-between; align-items:center; padding:15px 2px; font-size:14px; font-weight:600; cursor:pointer; }
+.row-link small { color:var(--muted); font-weight:400; }
+
+/* ---------- LIBRARY & EXERCISE DETAIL ---------- */
+.searchbox { display:flex; align-items:center; gap:9px; background:var(--surface2); border-radius:var(--radius-sm); padding:11px 14px; color:var(--faint); font-size:13px; margin-bottom:12px; }
+.searchbox svg { width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; }
+.filt { display:flex; gap:8px; overflow-x:auto; padding-bottom:12px; scrollbar-width:none; }
+.filt::-webkit-scrollbar{ display:none; }
+.filt button { flex-shrink:0; padding:8px 14px; border-radius:var(--radius-sm); border:1px solid var(--line); background:var(--surface); color:var(--muted); font-size:12px; font-weight:600; cursor:pointer; font-family:var(--font-body); }
+.filt button.on { border:1.5px solid var(--text); color:var(--text); }
+.lib-row { display:flex; align-items:center; gap:13px; padding:12px 0; border-bottom:1px solid var(--line); cursor:pointer; }
+.lib-row:last-child { border:none; }
+.lib-thumb { width:42px; height:42px; border-radius:10px; background:var(--surface2); display:flex; align-items:center; justify-content:center; font-family:var(--font-num); font-size:12px; color:var(--muted); flex-shrink:0; }
+.lib-row .ln b { font-size:14px; font-weight:600; display:block; }
+.lib-row .ln small { font-size:11.5px; color:var(--muted); }
+.lib-row .chev { margin-left:auto; color:var(--faint); font-size:16px; }
+.video-card { position:relative; background:var(--surface2); border-radius:var(--radius); height:170px; display:flex; align-items:center; justify-content:center; margin-bottom:14px; }
+.video-card .play { width:52px; height:52px; border-radius:50%; background:var(--action); display:flex; align-items:center; justify-content:center; }
+.video-card .play svg { width:18px; height:18px; fill:var(--action-ink); margin-left:3px; }
+.video-card .dur { position:absolute; bottom:10px; right:12px; font-size:10px; color:var(--muted); font-family:var(--font-num); }
+.ex-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:14px; }
+.ex-stats .card { margin:0; text-align:center; padding:14px 6px; }
+.ex-stats b { font-size:20px; font-family:var(--font-body); font-weight:300; letter-spacing:-0.02em; font-variant-numeric:tabular-nums; display:block; }
+.ex-stats small { font-size:9.5px; color:var(--muted); }
+.hist-row { display:flex; justify-content:space-between; align-items:center; padding:11px 0; border-bottom:1px solid var(--line); font-family:var(--font-num); font-size:13px; font-variant-numeric:tabular-nums; }
+.hist-row:last-child { border:none; }
+.hist-row .hd { color:var(--muted); font-size:11.5px; }
+.hist-row .pr-tag { font-size:9px; letter-spacing:.07em; text-transform:uppercase; font-weight:700; color:var(--stamp); border:1px solid var(--stamp); border-radius:5px; padding:2px 6px; margin-left:8px; }
+
+/* ---------- PROGRESS PHOTOS ---------- */
+.ph-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px; }
+.ph-tile { aspect-ratio:3/4; background:var(--surface2); border:1px solid var(--line); border-radius:var(--radius); position:relative; display:flex; align-items:center; justify-content:center; }
+.ph-tile svg { width:26px; height:26px; stroke:var(--faint); fill:none; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
+.ph-tile .pd { position:absolute; bottom:10px; left:12px; font-size:10.5px; color:var(--muted); font-family:var(--font-num); }
+.priv { display:flex; gap:11px; align-items:center; padding:13px 16px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); margin-bottom:14px; }
+.priv svg { width:17px; height:17px; stroke:var(--muted); fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0; }
+.priv p { font-size:11.5px; color:var(--muted); line-height:1.45; }
+
+/* ---------- QUICK-LOG SHEET ---------- */
+.veil { position:absolute; inset:0; z-index:70; background:rgba(0,0,0,.38); display:none; align-items:flex-end; border-radius:38px; }
+.veil.show { display:flex; animation:fadein .18s; }
+.sheet { width:100%; background:var(--bg); border-radius:22px 22px 36px 36px; padding:10px 22px 30px; }
+.sheet .handle { width:38px; height:4px; border-radius:2px; background:var(--line-strong); margin:6px auto 18px; }
+.sheet .label { display:block; text-align:center; margin-bottom:14px; }
+.stepper { display:flex; align-items:center; justify-content:center; gap:22px; margin-bottom:6px; }
+.stepper button { width:44px; height:44px; border-radius:50%; border:1px solid var(--line-strong); background:var(--surface); color:var(--text); font-size:20px; cursor:pointer; }
+.stepper b { font-family:var(--font-body); font-weight:300; font-size:46px; letter-spacing:-0.02em; font-variant-numeric:tabular-nums; min-width:150px; text-align:center; }
+.stepper b small { font-size:15px; color:var(--muted); font-weight:500; }
+.sheet .when { text-align:center; font-size:12px; color:var(--muted); margin-bottom:18px; }
+
+/* ---------- EXPLORER FLOW CHIPS ---------- */
+.flow-row { display:flex; gap:10px; justify-content:center; margin:-12px 0 24px; }
+.flow-chip { display:flex; align-items:center; gap:7px; border:1px solid var(--line-strong); background:var(--surface); color:var(--text); border-radius:999px; padding:9px 16px; font-size:12.5px; font-weight:600; cursor:pointer; font-family:var(--font-body); }
+
+</style>
+</head>
+<body>
+<div class="explorer">
+  <div class="exp-head">
+    <div class="kicker">Atrium v2 · full MVP — 14 screens</div>
+    <h1>Atrium product prototype</h1>
+    <p>The glow is gone, the green is gone, the chrome is monochrome ink. Color now belongs only to data: dusty blue for readiness and charts, sand for sleep, soft coral reserved for PRs and watch-outs. A quiet serif carries the voice; everything else is your phone's native type.</p>
+  </div>
+
+  <div class="mode-toggle">
+    <div class="wrap">
+      <button id="btn-light" class="on" onclick="setMode('light')">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.6M12 18.9v2.6M21.5 12h-2.6M5.1 12H2.5M18.7 5.3l-1.8 1.8M7.1 16.9l-1.8 1.8M18.7 18.7l-1.8-1.8M7.1 7.1 5.3 5.3"/></svg>
+        Day</button>
+      <button id="btn-dark" onclick="setMode('dark')">
+        <svg viewBox="0 0 24 24"><path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z"/></svg>
+        Night</button>
+    </div>
+  </div>
+
+  <div class="flow-row">
+    <button class="flow-chip" onclick="startOnboarding()">▶ Play onboarding flow</button>
+    <button class="flow-chip" onclick="go('today')">App home</button>
+  </div>
+
+  <div class="stage">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen-wrap">
+        <div class="statusbar"><span>9:41</span><span>⦿ ⦿ ▮</span></div>
+        <div class="screens">
+          <!-- TODAY -->
+          <section class="app-screen on" id="scr-today">
+            <div class="greet">
+              <div class="label date">Tuesday, June 9</div>
+              <h2 class="h-display">Push day, Arjun.</h2>
+            </div>
+            <div class="card readiness">
+              <div class="ring">
+                <svg width="88" height="88" viewBox="0 0 88 88">
+                  <circle class="track" cx="44" cy="44" r="38" fill="none" stroke-width="7"/>
+                  <circle class="fill" cx="44" cy="44" r="38" fill="none" stroke-width="7" stroke-dasharray="238.7" stroke-dashoffset="43"/>
+                </svg>
+                <div class="rnum"><b class="num">82</b><span>Ready</span></div>
+              </div>
+              <div class="r-copy">
+                <h3 class="h-display" style="font-size:15px">Recovered</h3>
+                <p>7h 40m sleep, resting HR back to baseline. Green light for full working weights today.</p>
+              </div>
+            </div>
+            <div class="card wcard">
+              <span class="label">Week 3 · Day 2 of 4</span>
+              <h3 class="h-display">Push — Strength</h3>
+              <div class="meta">52 min est · Barbell + dumbbell · 5 exercises</div>
+              <ul class="ex-preview">
+                <li><span>Bench Press</span><span class="num">4 × 6–8</span></li>
+                <li><span>Overhead Press</span><span class="num">3 × 8–10</span></li>
+                <li><span>Incline DB Press</span><span class="num">3 × 10–12</span></li>
+              </ul>
+              <button class="btn" onclick="go('workout')">Start workout</button>
+              <button class="btn ghost" style="margin-top:8px" onclick="go('program')">View program · Week 3 of 12</button>
+            </div>
+            <div class="mini-stats">
+              <div class="card">
+                <small class="label">This week</small>
+                <b class="num">3<span style="font-size:13px;color:var(--muted)"> / 4</span></b>
+                <div class="consist"><i class="done"></i><i class="done"></i><i class="done"></i><i></i></div>
+              </div>
+              <div class="card" onclick="openSheet()" style="cursor:pointer">
+                <small class="label">Body weight</small>
+                <b class="num" id="bw-num">176.2</b>
+                <small style="color:var(--good);font-weight:600">▾ 0.4 lb · 7-day avg</small>
+              </div>
+            </div>
+            <div class="card teaser" onclick="go('review')">
+              <div class="dot">✦</div>
+              <div>
+                <p><b>Your weekly review is ready.</b></p>
+                <small>A few wins, one thing to watch, and a cleaner plan for next week.</small>
+              </div>
+            </div>
+          </section>
+          <!-- ACTIVE WORKOUT -->
+          <section class="app-screen" id="scr-workout">
+            <div class="wk-head">
+              <div>
+                <h2 class="h-display" style="font-size:20px">Push — Strength</h2>
+                <span class="timer num" id="wk-timer">00:00</span>
+              </div>
+              <button class="finish-link" onclick="go('summary')">Finish</button>
+            </div>
+            <div class="card ex-block">
+              <h3 class="h-display">Bench Press</h3>
+              <div class="ex-sub">Barbell · Last session: 185 lb × 8, 8, 7, 6</div>
+              <div class="set-grid">
+                <div class="sg-head"><span>Set</span><span>Prev</span><span>lb</span><span>Reps</span><span></span></div>
+                <div class="set-row"><span class="num">1</span><span class="prev num">185×8</span><span class="val num">190</span><span class="val num">8</span><button class="check" onclick="tickSet(this)"><svg viewBox="0 0 24 24"><polyline points="4 13 9 18 20 6"/></svg></button></div>
+                <div class="set-row"><span class="num">2</span><span class="prev num">185×8</span><span class="val num">190</span><span class="val num">8</span><button class="check" onclick="tickSet(this)"><svg viewBox="0 0 24 24"><polyline points="4 13 9 18 20 6"/></svg></button></div>
+                <div class="set-row"><span class="num">3</span><span class="prev num">185×7</span><span class="val num">190</span><span class="val num">7</span><button class="check" onclick="tickSet(this)"><svg viewBox="0 0 24 24"><polyline points="4 13 9 18 20 6"/></svg></button></div>
+                <div class="set-row"><span class="num">4</span><span class="prev num">185×6</span><span class="val num">190</span><span class="val num">6</span><button class="check" onclick="tickSet(this)"><svg viewBox="0 0 24 24"><polyline points="4 13 9 18 20 6"/></svg></button></div>
+              </div>
+            </div>
+            <div class="card upnext">
+              <span class="label" style="display:block;margin-bottom:4px">Up next</span>
+              <div class="un-row"><span>Overhead Press</span><span>3 × 8–10</span></div>
+              <div class="un-row"><span>Incline DB Press</span><span>3 × 10–12</span></div>
+              <div class="un-row"><span>Cable Fly</span><span>3 × 12–15</span></div>
+              <div class="un-row"><span>Triceps Pushdown</span><span>3 × 12</span></div>
+            </div>
+            <div class="card teaser">
+              <div class="dot">⇄</div>
+              <div><p><b>No squat rack free?</b></p><small>Tap any exercise to swap in an equivalent.</small></div>
+            </div>
+          </section>
+
+          <!-- SUMMARY -->
+          <section class="app-screen" id="scr-summary">
+            <div class="sum-hero">
+              <span class="label">Workout complete</span>
+              <div class="big h-display">Strong session.</div>
+              <p>Push — Strength · Week 3, Day 2</p>
+            </div>
+            <div class="card pr-card">
+              <span class="label">★ New personal record</span>
+              <h3 class="h-display">Bench Press · 190 lb × 8</h3>
+              <p>Estimated 1RM up 5 lb → <b class="num">238 lb</b>. Third bench PR this program.</p>
+            </div>
+            <div class="sum-stats">
+              <div class="card"><b class="num">48:12</b><small class="label">Duration</small></div>
+              <div class="card"><b class="num">14,310</b><small class="label">Volume (lb)</small></div>
+              <div class="card"><b class="num">17</b><small class="label">Sets</small></div>
+            </div>
+            <div class="card">
+              <span class="label">How did that feel?</span>
+              <div class="tagrow">
+                <button onclick="selTag(this)">😫</button><button onclick="selTag(this)">😕</button><button onclick="selTag(this)">🙂</button><button class="sel" onclick="selTag(this)">💪</button><button onclick="selTag(this)">🔥</button>
+              </div>
+            </div>
+            <button class="btn" onclick="go('today')">Done</button>
+          </section>
+
+          <!-- PROGRESS -->
+          <section class="app-screen" id="scr-progress">
+            <div class="greet"><h2 class="h-display" style="font-size:24px">Progress</h2></div>
+            <div class="seg"><button class="on">Lifts</button><button onclick="go('photos')">Body</button></div>
+            <div class="card chart-card">
+              <div class="row"><h3 class="h-display">Bench Press · e1RM</h3><span class="delta num">▲ 9.2% / 12 wk</span></div>
+              <svg class="chart-svg" viewBox="0 0 320 130" preserveAspectRatio="none">
+                <line class="grid-l" x1="0" y1="32" x2="320" y2="32"/>
+                <line class="grid-l" x1="0" y1="65" x2="320" y2="65"/>
+                <line class="grid-l" x1="0" y1="98" x2="320" y2="98"/>
+                <path class="area" d="M10,98 L55,92 L100,86 L145,88 L190,70 L235,58 L280,44 L310,36 L310,130 L10,130 Z"/>
+                <path class="line" d="M10,98 L55,92 L100,86 L145,88 L190,70 L235,58 L280,44 L310,36"/>
+                <circle class="pt" cx="310" cy="36" r="4.5"/>
+              </svg>
+              <div class="row" style="margin-top:4px"><small class="label">Mar</small><small class="label">Apr</small><small class="label">May</small><small class="label">Jun</small></div>
+            </div>
+            <div class="card">
+              <div class="row"><h3 class="h-display" style="font-size:15px">Weekly volume by lift</h3><span class="label">tons</span></div>
+              <div class="plate-viz">
+                <div class="plate-stack"><i></i><i></i><i></i><i></i><i></i><i></i><small>Squat</small></div>
+                <div class="plate-stack"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><small>Bench</small></div>
+                <div class="plate-stack"><i></i><i></i><i></i><i></i><small>OHP</small></div>
+                <div class="plate-stack"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><small>Deadlift</small></div>
+                <div class="plate-stack"><i></i><i></i><i></i><i></i><i></i><small>Row</small></div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="hl"><div class="ic">↗</div><div><b>Bench responds to frequency.</b><p>Your e1RM climbs ~2× faster in weeks with two pressing days vs one.</p></div></div>
+              <div class="hl"><div class="ic">☾</div><div><b>Sleep is your volume governor.</b><p>Squat volume drops 18% in weeks averaging under 6.5h sleep.</p></div></div>
+            </div>
+          </section>
+
+          <!-- COACH -->
+          <section class="app-screen" id="scr-coach">
+            <div class="greet"><h2 class="h-display" style="font-size:24px">Coach</h2></div>
+            <div class="coach-ctx">
+              <span class="chip">47 workouts</span><span class="chip">8 wks sleep</span><span class="chip">Program · W3</span>
+            </div>
+            <div class="card review-pin" onclick="go('review')">
+              <div class="row"><b>Weekly review · Jun 2–8</b><span class="arrow">→</span></div>
+              <small style="color:var(--muted);font-size:12px">Volume up 6% · one thing to watch · plan cleaned up</small>
+            </div>
+            <div id="chat">
+              <div class="bubble ai">Solid push day. That bench PR puts you ahead of the week-3 target — I've nudged Friday's top set to 192.5 lb. Anything on your mind?</div>
+            </div>
+            <div class="sugg">
+              <button onclick="ask(this,'stuck')">Why is my bench stuck?</button>
+              <button onclick="ask(this,'travel')">I'm traveling next week</button>
+              <button onclick="ask(this,'tired')">Feeling run down</button>
+            </div>
+          </section>
+
+          <!-- WEEKLY REVIEW -->
+          <section class="app-screen" id="scr-review">
+            <button class="back-link" onclick="go('coach')">‹ Coach</button>
+            <div class="rev-hero">
+              <span class="label">Weekly review · Jun 2 – 8</span>
+              <h2 class="h-display">Strong week — volume up 6%, recovery holding.</h2>
+              <p>Grounded in 4 workouts, 7 nights of sleep, and 12 weeks of your history.</p>
+            </div>
+            <div class="card">
+              <div class="hl"><div class="ic">★</div><div><b>Bench e1RM hit 238 lb.</b><p>Third consecutive week of progress — the added pressing day is working.</p></div></div>
+              <div class="hl"><div class="ic">✓</div><div><b>4-for-4 on planned sessions.</b><p>Longest perfect streak this program. Consistency beats intensity.</p></div></div>
+              <div class="hl"><div class="ic">☾</div><div><b>Sleep averaged 7h 18m.</b><p>Up 24 min from last week — and your bar speed showed it.</p></div></div>
+            </div>
+            <div class="card watch-card">
+              <div class="hl" style="border:none;padding:2px 0"><div class="ic" style="color:var(--warn)">!</div><div><b>Watch-out: squat is stalling.</b><p>Reps at 225 have flatlined for 3 weeks, and it tracks your short-sleep nights. Next week trims squat volume 15% and adds a top-set day.</p></div></div>
+            </div>
+            <div class="card diff">
+              <span class="label" style="display:block;margin-bottom:6px">Next week's plan changes</span>
+              <div class="d-row"><span>Squat back-off sets</span><span class="minus">4 → 3</span></div>
+              <div class="d-row"><span>Friday bench top set</span><span class="plus">190 → 192.5 lb</span></div>
+              <div class="d-row"><span>Tuesday: pause squat top set</span><span class="plus">+ added</span></div>
+            </div>
+            <button class="btn" id="applyBtn" onclick="applyPlan()">Apply to next week</button>
+          </section>
+
+          <!-- PROFILE -->
+          <section class="app-screen" id="scr-profile">
+            <div class="greet" style="display:flex;gap:14px;align-items:center">
+              <div class="avatar">A</div>
+              <div><h2 class="h-display" style="font-size:21px">Arjun</h2><small style="color:var(--muted);font-size:12px">Premium · since March 2026</small></div>
+            </div>
+            <div class="card" style="padding:6px 16px">
+              <div class="prof-row"><span>What your coach knows</span><small>12 facts ›</small></div>
+              <div class="prof-row"><span>Connected health data</span><small>Apple Health ›</small></div>
+              <div class="prof-row"><span>Units</span><small>lb / mi ›</small></div>
+              <div class="prof-row"><span>Export my data</span><small>CSV ›</small></div>
+              <div class="prof-row" style="border:none" onclick="go('paywall')"><span>Manage subscription</span><small>$69.99 / yr ›</small></div>
+            </div>
+            <div class="card teaser"><div class="dot">🔒</div><div><p><b>Your data is never sold.</b></p><small>Health data stays yours. Full stop.</small></div></div>
+          </section>
+
+        </div>
+
+
+          <!-- ONBOARDING -->
+          <section class="app-screen" id="scr-onboard">
+            <div class="ob-top">
+              <div class="ob-dots" id="ob-dots"><i class="on"></i><i></i><i></i><i></i><i></i></div>
+              <button class="ob-skip" onclick="go('paywall')">Skip</button>
+            </div>
+
+            <div class="ob-step show" data-ob="0">
+              <span class="label">Let's set you up · 1 of 5</span>
+              <h2>What are you training for?</h2>
+              <p class="sub">Your coach builds everything around this. You can change it any time.</p>
+              <button class="ob-opt" onclick="obPick(this)"><span><b>Build strength</b><small>Lift heavier — progress on the big lifts</small></span><i class="tick"></i></button>
+              <button class="ob-opt" onclick="obPick(this)"><span><b>Build muscle</b><small>Hypertrophy focus, balanced volume</small></span><i class="tick"></i></button>
+              <button class="ob-opt" onclick="obPick(this)"><span><b>Lose fat, keep strength</b><small>Training that protects muscle in a deficit</small></span><i class="tick"></i></button>
+              <button class="ob-opt" onclick="obPick(this)"><span><b>General fitness</b><small>Consistent, well-rounded training</small></span><i class="tick"></i></button>
+            </div>
+
+            <div class="ob-step" data-ob="1">
+              <span class="label">Let's set you up · 2 of 5</span>
+              <h2>How long have you been training?</h2>
+              <p class="sub">This sets your starting volume and how fast loads progress.</p>
+              <button class="ob-opt" onclick="obPick(this)"><span><b>I'm new to lifting</b><small>Less than 6 months</small></span><i class="tick"></i></button>
+              <button class="ob-opt" onclick="obPick(this)"><span><b>Coming back from a break</b><small>Trained before, restarting now</small></span><i class="tick"></i></button>
+              <button class="ob-opt" onclick="obPick(this)"><span><b>1–3 years consistent</b><small>Comfortable with the main lifts</small></span><i class="tick"></i></button>
+              <button class="ob-opt" onclick="obPick(this)"><span><b>3+ years</b><small>Experienced — periodization welcome</small></span><i class="tick"></i></button>
+            </div>
+
+            <div class="ob-step" data-ob="2">
+              <span class="label">Let's set you up · 3 of 5</span>
+              <h2>What equipment do you have?</h2>
+              <p class="sub">Programs only ever use what you can actually access.</p>
+              <button class="ob-opt" onclick="obPick(this)"><span><b>Full gym</b><small>Barbells, machines, the works</small></span><i class="tick"></i></button>
+              <button class="ob-opt" onclick="obPick(this)"><span><b>Barbell + rack at home</b><small>Plates, bench, maybe a pull-up bar</small></span><i class="tick"></i></button>
+              <button class="ob-opt" onclick="obPick(this)"><span><b>Dumbbells only</b><small>Adjustable or a few pairs</small></span><i class="tick"></i></button>
+              <button class="ob-opt" onclick="obPick(this)"><span><b>Bodyweight for now</b><small>No equipment yet</small></span><i class="tick"></i></button>
+            </div>
+
+            <div class="ob-step" data-ob="3">
+              <span class="label">Let's set you up · 4 of 5</span>
+              <h2>How many days a week?</h2>
+              <p class="sub">Be honest, not ambitious — consistency beats volume. Your coach will adapt if life happens.</p>
+              <button class="ob-opt" onclick="obPick(this)"><span><b>2 days</b><small>Full-body, efficient</small></span><i class="tick"></i></button>
+              <button class="ob-opt" onclick="obPick(this)"><span><b>3 days</b><small>The consistency sweet spot</small></span><i class="tick"></i></button>
+              <button class="ob-opt" onclick="obPick(this)"><span><b>4 days</b><small>Upper / lower split</small></span><i class="tick"></i></button>
+              <button class="ob-opt" onclick="obPick(this)"><span><b>5+ days</b><small>For established routines</small></span><i class="tick"></i></button>
+            </div>
+
+            <div class="ob-step" data-ob="4">
+              <span class="label">Let's set you up · 5 of 5</span>
+              <div class="hk-badge"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"/></svg></div>
+              <h2>Let your coach see recovery.</h2>
+              <p class="sub">Connect Apple Health so sleep, resting heart rate, and activity can shape each day's plan. Read-only, never sold, never used for ads — and you can disconnect any time.</p>
+              <button class="btn" onclick="obFinish()">Connect Apple Health</button>
+              <button class="btn ghost" style="margin-top:10px" onclick="obFinish()">Not now</button>
+            </div>
+
+            <div class="ob-step ob-ready" data-ob="5">
+              <span class="label">All set</span>
+              <h2>Your first program is ready.</h2>
+              <p class="sub">Built from your answers — it will adapt every week as you log.</p>
+              <div class="sumchips">
+                <span class="chip">Upper / Lower</span><span class="chip">4 days / wk</span><span class="chip">Strength focus</span><span class="chip">Full gym</span>
+              </div>
+              <div class="card">
+                <span class="label" style="display:block;margin-bottom:6px">Week 1 · Day 1</span>
+                <div class="row" style="margin-bottom:4px"><b style="font-family:var(--font-display);font-weight:600;font-size:17px">Upper — Strength</b><span style="font-size:12px;color:var(--muted)">~50 min</span></div>
+                <small style="color:var(--muted);font-size:12px">Bench Press · Row · Overhead Press · Pulldown · Curls</small>
+              </div>
+              <button class="btn" onclick="go('paywall')">See your plan</button>
+            </div>
+          </section>
+
+          <!-- PAYWALL -->
+          <section class="app-screen" id="scr-paywall">
+            <button class="pw-close" onclick="go('today')">✕</button>
+            <div class="pw-hero">
+              <h2>Your coach is ready.</h2>
+              <p>Logging is free, forever. Premium is the brain on top — a plan that adapts to your recovery, and a coach grounded in your own numbers.</p>
+            </div>
+            <div class="card pw-feats" style="padding:8px 18px">
+              <div class="pw-feat"><div class="ck"><svg viewBox="0 0 24 24"><polyline points="4 13 9 18 20 6"/></svg></div><div><b>Adaptive program</b><small>Loads, volume, and deloads managed for you</small></div></div>
+              <div class="pw-feat"><div class="ck"><svg viewBox="0 0 24 24"><polyline points="4 13 9 18 20 6"/></svg></div><div><b>AI coach that knows your data</b><small>Every answer grounded in your training history</small></div></div>
+              <div class="pw-feat"><div class="ck"><svg viewBox="0 0 24 24"><polyline points="4 13 9 18 20 6"/></svg></div><div><b>Weekly review</b><small>Wins, watch items, and next week's plan</small></div></div>
+              <div class="pw-feat"><div class="ck"><svg viewBox="0 0 24 24"><polyline points="4 13 9 18 20 6"/></svg></div><div><b>Readiness-adjusted days</b><small>Sleep and recovery shape each session</small></div></div>
+            </div>
+            <div class="plan sel" onclick="pickPlan(this)">
+              <div class="pl"><b>Annual</b><small>$5.83 / month, billed yearly</small></div>
+              <div style="display:flex;align-items:center;gap:10px"><span class="badge">Save 42%</span><span class="price">$69.99</span></div>
+            </div>
+            <div class="plan" onclick="pickPlan(this)">
+              <div class="pl"><b>Monthly</b><small>Cancel anytime</small></div>
+              <span class="price">$9.99</span>
+            </div>
+            <button class="btn" onclick="go('today')">Start 7-day free trial</button>
+            <div class="pw-fine">No charge until June 17. Cancel in two taps from Profile.<br>Free tier keeps full logging, history, and PRs.</div>
+            <button class="pw-later" onclick="go('today')">Maybe later</button>
+          </section>
+
+          <!-- PROGRAM -->
+          <section class="app-screen" id="scr-program">
+            <button class="back-link" onclick="go('today')">‹ Today</button>
+            <span class="label">Current program</span>
+            <h2 class="h-display" style="font-size:23px;margin-top:6px">Upper / Lower — Strength</h2>
+            <div class="prog-bar"><i></i></div>
+            <div class="row"><span class="prog-meta">Week 3 of 12 · 4 days / week</span><span class="prog-meta num">25%</span></div>
+            <div class="wk-chips">
+              <button class="done">W1 ✓</button><button class="done">W2 ✓</button><button class="on">W3</button><button>W4</button><button>W5</button><button>W6</button><button>W7</button><button>W8</button>
+            </div>
+            <div class="card" style="padding:6px 18px">
+              <div class="day-row"><span class="d">Mon</span><div class="dn"><b>Upper — Strength</b><small>52 min · 5 exercises · PR on bench</small></div><div class="st"><div class="donec"><svg viewBox="0 0 24 24"><polyline points="4 13 9 18 20 6"/></svg></div></div></div>
+              <div class="day-row"><span class="d">Tue</span><div class="dn"><b>Lower — Strength</b><small>48 min · 5 exercises</small></div><div class="st"><div class="donec"><svg viewBox="0 0 24 24"><polyline points="4 13 9 18 20 6"/></svg></div></div></div>
+              <div class="day-row today-row" onclick="go('workout')"><span class="d">Thu</span><div class="dn"><b>Push — Strength</b><small>52 min est · tap to start</small></div><div class="st"><span class="todaytag">Today</span></div></div>
+              <div class="day-row"><span class="d">Sat</span><div class="dn"><b>Lower — Hypertrophy</b><small>55 min · 6 exercises</small></div><div class="st"><span style="font-size:11px;color:var(--faint)">Upcoming</span></div></div>
+            </div>
+            <div class="card" style="padding:2px 18px">
+              <div class="row-link" onclick="go('library')"><span>Exercise library</span><small>300+ movements ›</small></div>
+            </div>
+            <button class="btn ghost" onclick="go('coach')">Adjust with your coach</button>
+          </section>
+
+          <!-- LIBRARY -->
+          <section class="app-screen" id="scr-library">
+            <button class="back-link" onclick="go('program')">‹ Program</button>
+            <h2 class="h-display" style="font-size:23px;margin-bottom:14px">Exercises</h2>
+            <div class="searchbox"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>Search 300+ movements</div>
+            <div class="filt">
+              <button class="on">All</button><button>Chest</button><button>Back</button><button>Legs</button><button>Shoulders</button><button>Arms</button><button>Core</button>
+            </div>
+            <div class="card" style="padding:4px 18px">
+              <div class="lib-row" onclick="go('exdetail')"><div class="lib-thumb">BP</div><div class="ln"><b>Bench Press</b><small>Chest · Barbell · Compound</small></div><span class="chev">›</span></div>
+              <div class="lib-row"><div class="lib-thumb">SQ</div><div class="ln"><b>Back Squat</b><small>Legs · Barbell · Compound</small></div><span class="chev">›</span></div>
+              <div class="lib-row"><div class="lib-thumb">DL</div><div class="ln"><b>Deadlift</b><small>Posterior chain · Barbell</small></div><span class="chev">›</span></div>
+              <div class="lib-row"><div class="lib-thumb">OP</div><div class="ln"><b>Overhead Press</b><small>Shoulders · Barbell</small></div><span class="chev">›</span></div>
+              <div class="lib-row"><div class="lib-thumb">PU</div><div class="ln"><b>Pull-up</b><small>Back · Bodyweight</small></div><span class="chev">›</span></div>
+              <div class="lib-row"><div class="lib-thumb">ID</div><div class="ln"><b>Incline DB Press</b><small>Chest · Dumbbell</small></div><span class="chev">›</span></div>
+              <div class="lib-row"><div class="lib-thumb">RW</div><div class="ln"><b>Barbell Row</b><small>Back · Barbell · Compound</small></div><span class="chev">›</span></div>
+            </div>
+          </section>
+
+          <!-- EXERCISE DETAIL -->
+          <section class="app-screen" id="scr-exdetail">
+            <button class="back-link" onclick="go('library')">‹ Library</button>
+            <h2 class="h-display" style="font-size:23px">Bench Press</h2>
+            <div class="coach-ctx" style="padding-top:8px"><span class="chip">Barbell</span><span class="chip">Chest</span><span class="chip">Compound</span></div>
+            <div class="video-card">
+              <div class="play"><svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8z"/></svg></div>
+              <span class="dur">0:24 · form demo</span>
+            </div>
+            <div class="ex-stats">
+              <div class="card"><b>238</b><small class="label">e1RM (lb)</small></div>
+              <div class="card"><b>190×8</b><small class="label">Best set</small></div>
+              <div class="card"><b>47</b><small class="label">Sessions</small></div>
+            </div>
+            <div class="card chart-card">
+              <div class="row"><h3 class="h-display">e1RM · 12 weeks</h3><span class="delta num">▲ 9.2%</span></div>
+              <svg class="chart-svg" viewBox="0 0 320 130" preserveAspectRatio="none">
+                <line class="grid-l" x1="0" y1="32" x2="320" y2="32"/><line class="grid-l" x1="0" y1="65" x2="320" y2="65"/><line class="grid-l" x1="0" y1="98" x2="320" y2="98"/>
+                <path class="area" d="M10,98 L55,92 L100,86 L145,88 L190,70 L235,58 L280,44 L310,36 L310,130 L10,130 Z"/>
+                <path class="line" d="M10,98 L55,92 L100,86 L145,88 L190,70 L235,58 L280,44 L310,36"/>
+                <circle class="pt" cx="310" cy="36" r="4"/>
+              </svg>
+            </div>
+            <div class="card" style="padding:8px 18px">
+              <span class="label" style="display:block;padding:8px 0 4px">Recent</span>
+              <div class="hist-row"><span>190 × 8 · 4 sets<span class="pr-tag">PR</span></span><span class="hd">Jun 9</span></div>
+              <div class="hist-row"><span>185 × 8 · 4 sets</span><span class="hd">Jun 5</span></div>
+              <div class="hist-row"><span>185 × 8 · 4 sets</span><span class="hd">Jun 2</span></div>
+              <div class="hist-row"><span>185 × 7 · 4 sets</span><span class="hd">May 29</span></div>
+            </div>
+          </section>
+
+          <!-- PROGRESS PHOTOS -->
+          <section class="app-screen" id="scr-photos">
+            <div class="greet"><h2 class="h-display" style="font-size:24px">Progress</h2></div>
+            <div class="seg"><button onclick="go('progress')">Lifts</button><button class="on">Body</button></div>
+            <div class="priv">
+              <svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+              <p><b>Private by default.</b> Photos are encrypted, never used for anything, and never leave your account.</p>
+            </div>
+            <div class="ph-grid">
+              <div class="ph-tile"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.4"/><path d="M5.5 20c.8-3.4 3.4-5.1 6.5-5.1s5.7 1.7 6.5 5.1"/></svg><span class="pd">Jun 8</span></div>
+              <div class="ph-tile"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.4"/><path d="M5.5 20c.8-3.4 3.4-5.1 6.5-5.1s5.7 1.7 6.5 5.1"/></svg><span class="pd">May 25</span></div>
+              <div class="ph-tile"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.4"/><path d="M5.5 20c.8-3.4 3.4-5.1 6.5-5.1s5.7 1.7 6.5 5.1"/></svg><span class="pd">May 11</span></div>
+              <div class="ph-tile"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.4"/><path d="M5.5 20c.8-3.4 3.4-5.1 6.5-5.1s5.7 1.7 6.5 5.1"/></svg><span class="pd">Apr 27</span></div>
+            </div>
+            <button class="btn ghost">Add photo</button>
+          </section>
+
+        <!-- REST TIMER -->
+        <div class="rest-banner" id="rest">
+          <div><small class="label">Rest</small><b class="num" id="rest-num">1:30</b></div>
+          <button onclick="hideRest()">Skip</button>
+        </div>
+
+
+        <!-- QUICK-LOG SHEET -->
+        <div class="veil" id="veil" onclick="if(event.target===this)closeSheet()">
+          <div class="sheet">
+            <div class="handle"></div>
+            <span class="label">Log body weight</span>
+            <div class="stepper">
+              <button onclick="bw(-0.2)">−</button>
+              <b id="bw-val">176.2<small> lb</small></b>
+              <button onclick="bw(0.2)">+</button>
+            </div>
+            <div class="when">Tuesday, June 9 · 7-day avg 176.4</div>
+            <button class="btn" onclick="saveBw()">Save</button>
+          </div>
+        </div>
+
+        <!-- TAB BAR -->
+        <nav class="tabbar">
+          <button class="tab on" data-go="today" onclick="go('today',this)">
+            <svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5h13V10"/></svg>Today</button>
+          <button class="tab" data-go="progress" onclick="go('progress',this)">
+            <svg viewBox="0 0 24 24"><path d="M4 19.5 9.5 13l4 3.5L20 8.5"/><circle cx="20" cy="8.5" r="1.4"/></svg>Progress</button>
+          <button class="tab-plus" onclick="go('workout')"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+          <button class="tab" data-go="coach" onclick="go('coach',this)">
+            <svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 1 1-3.1-6.3L21 5l-.6 3.2A8 8 0 0 1 21 12z"/><path d="M8.5 12h.01M12 12h.01M15.5 12h.01"/></svg>Coach</button>
+          <button class="tab" data-go="profile" onclick="go('profile',this)">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M5 20c.8-3.6 3.6-5.4 7-5.4s6.2 1.8 7 5.4"/></svg>Profile</button>
+        </nav>
+      </div>
+    </div>
+
+    <aside class="side-notes">
+      <h3>Sign-off round — the seven new screens</h3>
+      <p>Same locked system (graphite night, quiet serif, light numerals, ink buttons) applied to the rest of the MVP. The full 14-screen app is now clickable.</p>
+      <ul>
+        <li><b>Onboarding (5 steps):</b> tap "Play onboarding flow" above. Four questions, then the Apple Health ask framed as coach value. No account wall — per the blueprint, sign-in comes after the first workout.</li>
+        <li><b>Paywall:</b> soft and skippable, annual pre-selected, free tier explicitly protected in the fine print. Ink, no urgency theatrics.</li>
+        <li><b>Program:</b> from Today → "View program". Week chips, day list, today's session tappable.</li>
+        <li><b>Library → Exercise detail:</b> from Program. Tap Bench Press for the detail page (demo video slot, light-numeral stats, history with a coral PR tag).</li>
+        <li><b>Progress photos:</b> Progress tab → "Body" segment. Privacy promise leads the screen.</li>
+        <li><b>Quick-log sheet:</b> tap the Body weight tile on Today.</li>
+      </ul>
+      <div class="try">
+        <b>Sign-off checklist</b>
+        <ol>
+          <li>Run onboarding in both modes</li>
+          <li>Dismiss + revisit paywall (Profile → Manage subscription)</li>
+          <li>Today → Program → Library → Bench Press</li>
+          <li>Progress → Body → photos</li>
+          <li>Log a weight from Today</li>
+        </ol>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+function setMode(m){
+  document.documentElement.setAttribute('data-mode',m);
+  document.getElementById('btn-light').classList.toggle('on',m==='light');
+  document.getElementById('btn-dark').classList.toggle('on',m==='dark');
+}
+if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) setMode('dark');
+function go(name, tabEl){
+  document.querySelectorAll('.app-screen').forEach(s=>s.classList.remove('on'));
+  document.getElementById('scr-'+name).classList.add('on');
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  const owner = tabEl || document.querySelector('.tab[data-go="'+({summary:'today',review:'coach',workout:'today',program:'today',library:'today',exdetail:'today',photos:'progress',onboard:'today',paywall:'profile'}[name]||name)+'"]');
+  if(owner) owner.classList.add('on');
+  hideRest(); closeSheet();
+  document.querySelector('.tabbar').style.display = (name==='onboard'||name==='paywall') ? 'none' : 'flex';
+  if(name==='workout') startTimer(); else stopTimer();
+}
+let tInt=null, tSec=0;
+function startTimer(){ if(tInt) return; tInt=setInterval(()=>{ tSec++;
+  document.getElementById('wk-timer').textContent = String(Math.floor(tSec/60)).padStart(2,'0')+':'+String(tSec%60).padStart(2,'0');
+},1000); }
+function stopTimer(){ clearInterval(tInt); tInt=null; }
+let rInt=null;
+function tickSet(btn){
+  btn.classList.toggle('ok');
+  btn.closest('.set-row').classList.toggle('done-row');
+  if(btn.classList.contains('ok')) showRest();
+}
+function showRest(){
+  const el=document.getElementById('rest'); el.classList.add('show');
+  let s=90; const num=document.getElementById('rest-num');
+  clearInterval(rInt); num.textContent='1:30';
+  rInt=setInterval(()=>{ s--; if(s<=0){ hideRest(); return; }
+    num.textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); },1000);
+}
+function hideRest(){ document.getElementById('rest').classList.remove('show'); clearInterval(rInt); }
+function selTag(b){ b.parentElement.querySelectorAll('button').forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); }
+const replies={
+  stuck:["Why is my bench stuck?","It isn't, quite — your e1RM is up 9% in 12 weeks. But reps at top weight stalled the two weeks you slept under 6.5h. Pattern in your data: bench progresses ~2× faster with two pressing days. Friday's session already reflects that."],
+  travel:["I'm traveling next week — hotel gym only.","Done. I've swapped barbell work for dumbbell and machine equivalents and trimmed it to 3 sessions of ~40 min. Your squat top-set day moves to the week you're back so the stall plan stays intact."],
+  tired:["Feeling run down lately.","Your data agrees: RHR is 4 bpm above baseline and sleep is down 40 min this week. Today becomes a lighter technique session — 80% loads, same movements. If it persists 3 more days, we deload. Listen to that signal."]
+};
+function ask(btn,key){
+  const chat=document.getElementById('chat'); const [q,a]=replies[key];
+  const me=document.createElement('div'); me.className='bubble me'; me.textContent=q; chat.appendChild(me);
+  setTimeout(()=>{ const ai=document.createElement('div'); ai.className='bubble ai'; ai.textContent=a; chat.appendChild(ai);
+    ai.scrollIntoView({behavior:'smooth',block:'end'}); },450);
+  btn.disabled=true; btn.style.opacity=.4;
+}
+
+// ---------- onboarding ----------
+let obStep = 0;
+function startOnboarding(){ obStep = 0; renderOb(); go('onboard'); }
+function renderOb(){
+  document.querySelectorAll('.ob-step').forEach(s=>s.classList.toggle('show', +s.dataset.ob===obStep));
+  const dots=document.querySelectorAll('#ob-dots i');
+  dots.forEach((d,i)=>d.classList.toggle('on', i<=Math.min(obStep,4)));
+}
+function obPick(btn){
+  btn.parentElement.querySelectorAll('.ob-opt').forEach(o=>o.classList.remove('sel'));
+  btn.classList.add('sel');
+  setTimeout(()=>{ obStep++; renderOb(); }, 380);
+}
+function obFinish(){ obStep = 5; renderOb(); }
+
+// ---------- paywall ----------
+function pickPlan(el){ el.parentElement.querySelectorAll('.plan').forEach(p=>p.classList.remove('sel')); el.classList.add('sel'); }
+
+// ---------- quick-log sheet ----------
+let bwVal = 176.2;
+function openSheet(){ document.getElementById('veil').classList.add('show'); }
+function closeSheet(){ const v=document.getElementById('veil'); if(v) v.classList.remove('show'); }
+function bw(d){ bwVal = Math.round((bwVal+d)*10)/10; document.getElementById('bw-val').innerHTML = bwVal.toFixed(1)+'<small> lb</small>'; }
+function saveBw(){ document.getElementById('bw-num').textContent = bwVal.toFixed(1); closeSheet(); }
+
+function applyPlan(){
+  const b=document.getElementById('applyBtn');
+  b.textContent='Applied ✓ — see you Tuesday'; b.classList.add('applied');
+}
+</script>
+</body>
+</html>

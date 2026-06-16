@@ -1,0 +1,256 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`golden: 12 weeks of ul4_strength @ 85% completion > matches the frozen prescription sequence 1`] = `
+"w01 Upper — Strength · bb_bench [top_set_backoff] T4-6@135 B6-8@115 B6-8@115 B6-8@115
+w01 Upper — Strength · bb_row [double_progression] W6-8@95 W6-8@95 W6-8@95 W6-8@95
+w01 Upper — Strength · bb_ohp [double_progression] W8-10@65 W8-10@65 W8-10@65
+w01 Upper — Strength · lat_pulldown [double_progression] W8-10@120 W8-10@120 W8-10@120
+w01 Upper — Strength · db_curl [double_progression] W10-12@25 W10-12@25
+w01 Lower — Strength · bb_back_squat [top_set_backoff] T4-6@185 B6-8@157.5 B6-8@157.5 B6-8@157.5
+w01 Lower — Strength · bb_rdl [double_progression] W8-10@135 W8-10@135 W8-10@135
+w01 Lower — Strength · leg_press [double_progression] W10-12@270 W10-12@270 W10-12@270
+w01 Lower — Strength · calf_raise [double_progression] W10-12@90 W10-12@90 W10-12@90
+w01 Lower — Strength · plank [timed_progression] W30s W30s W30s
+w01 Upper — Volume · bb_incline_bench [double_progression] W8-10@115 W8-10@115 W8-10@115 W8-10@115
+w01 Upper — Volume · chest_supported_row [double_progression] W10-12@110 W10-12@110 W10-12@110 W10-12@110
+w01 Upper — Volume · db_shoulder_press [double_progression] W10-12@35 W10-12@35 W10-12@35
+w01 Upper — Volume · lateral_raise [double_progression] W12-15@15 W12-15@15 W12-15@15
+w01 Upper — Volume · triceps_pushdown [double_progression] W10-12@50 W10-12@50
+w01 Upper — Volume · cable_curl [double_progression] W10-12@30 W10-12@30
+w01 Lower — Volume · bb_front_squat [double_progression] W8-10@135 W8-10@135 W8-10@135 W8-10@135
+w01 Lower — Volume · hip_thrust [double_progression] W10-12@185 W10-12@185 W10-12@185
+w01 Lower — Volume · leg_curl [double_progression] W12-15@90 W12-15@90 W12-15@90
+w01 Lower — Volume · walking_lunge [rep_progression] W10-10 W10-10
+w01 Lower — Volume · calf_raise [double_progression] W12-15@90 W12-15@90 W12-15@90
+w02 Upper — Strength · bb_bench [top_set_backoff] T4-6@137.5 B6-8@117.5 B6-8@117.5 B6-8@117.5 — top set +2.5 lb
+w02 Upper — Strength · bb_row [double_progression] W6-8@95 W6-8@95 W6-8@95 W6-8@95
+w02 Upper — Strength · bb_ohp [double_progression] W8-10@65 W8-10@65 W8-10@65
+w02 Upper — Strength · lat_pulldown [double_progression] W8-10@120 W8-10@120 W8-10@120
+w02 Upper — Strength · db_curl [double_progression] W10-12@25 W10-12@25
+w02 Lower — Strength · bb_back_squat [top_set_backoff] T4-6@190 B6-8@162.5 B6-8@162.5 B6-8@162.5 — top set +5 lb
+w02 Lower — Strength · bb_rdl [double_progression] W8-10@135 W8-10@135 W8-10@135
+w02 Lower — Strength · leg_press [double_progression] W10-12@270 W10-12@270 W10-12@270
+w02 Lower — Strength · calf_raise [double_progression] W10-12@92.5 W10-12@92.5 W10-12@92.5 — +2.5 lb, restart at 10 reps
+w02 Lower — Strength · plank [timed_progression] W30s W30s W30s
+w02 Upper — Volume · bb_incline_bench [double_progression] W8-10@115 W8-10@115 W8-10@115 W8-10@115
+w02 Upper — Volume · chest_supported_row [double_progression] W10-12@110 W10-12@110 W10-12@110 W10-12@110
+w02 Upper — Volume · db_shoulder_press [double_progression] W10-12@35 W10-12@35 W10-12@35
+w02 Upper — Volume · lateral_raise [double_progression] W12-15@15 W12-15@15 W12-15@15
+w02 Upper — Volume · triceps_pushdown [double_progression] W10-12@50 W10-12@50
+w02 Upper — Volume · cable_curl [double_progression] W10-12@30 W10-12@30
+w02 Lower — Volume · bb_front_squat [double_progression] W8-10@135 W8-10@135 W8-10@135 W8-10@135
+w02 Lower — Volume · hip_thrust [double_progression] W10-12@185 W10-12@185 W10-12@185
+w02 Lower — Volume · leg_curl [double_progression] W12-15@90 W12-15@90 W12-15@90
+w02 Lower — Volume · walking_lunge [rep_progression] W10-10 W10-10
+w02 Lower — Volume · calf_raise [double_progression] W12-15@90 W12-15@90 W12-15@90
+w03 Upper — Strength · bb_bench [top_set_backoff] T4-6@140 B6-8@120 B6-8@120 B6-8@120 — top set +2.5 lb
+w03 Upper — Strength · bb_row [double_progression] W6-8@95 W6-8@95 W6-8@95 W6-8@95
+w03 Upper — Strength · bb_ohp [double_progression] W8-10@65 W8-10@65 W8-10@65
+w03 Upper — Strength · lat_pulldown [double_progression] W8-10@120 W8-10@120 W8-10@120
+w03 Upper — Strength · db_curl [double_progression] W10-12@25 W10-12@25
+w03 Lower — Strength · bb_back_squat [top_set_backoff] T4-6@195 B6-8@165 B6-8@165 B6-8@165 — top set +5 lb
+w03 Lower — Strength · bb_rdl [double_progression] W8-10@135 W8-10@135 W8-10@135
+w03 Lower — Strength · leg_press [double_progression] W10-12@270 W10-12@270 W10-12@270
+w03 Lower — Strength · calf_raise [double_progression] W10-12@95 W10-12@95 W10-12@95 — +2.5 lb, restart at 10 reps
+w03 Lower — Strength · plank [timed_progression] W30s W30s W30s
+w03 Upper — Volume · bb_incline_bench [double_progression] W8-10@115 W8-10@115 W8-10@115 W8-10@115
+w03 Upper — Volume · chest_supported_row [double_progression] W10-12@110 W10-12@110 W10-12@110 W10-12@110
+w03 Upper — Volume · db_shoulder_press [double_progression] W10-12@35 W10-12@35 W10-12@35
+w03 Upper — Volume · lateral_raise [double_progression] W12-15@15 W12-15@15 W12-15@15
+w03 Upper — Volume · triceps_pushdown [double_progression] W10-12@50 W10-12@50
+w03 Upper — Volume · cable_curl [double_progression] W10-12@30 W10-12@30
+w03 Lower — Volume · bb_front_squat [double_progression] W8-10@135 W8-10@135 W8-10@135 W8-10@135
+w03 Lower — Volume · hip_thrust [double_progression] W10-12@185 W10-12@185 W10-12@185
+w03 Lower — Volume · leg_curl [double_progression] W12-15@90 W12-15@90 W12-15@90
+w03 Lower — Volume · walking_lunge [rep_progression] W10-10 W10-10
+w03 Lower — Volume · calf_raise [double_progression] W12-15@90 W12-15@90 W12-15@90
+w04 Upper — Strength · bb_bench [top_set_backoff] T4-6@142.5 B6-8@120 B6-8@120 B6-8@120 — top set +2.5 lb
+w04 Upper — Strength · bb_row [double_progression] W6-8@95 W6-8@95 W6-8@95 W6-8@95 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w04 Upper — Strength · bb_ohp [double_progression] W8-10@65 W8-10@65 W8-10@65 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w04 Upper — Strength · lat_pulldown [double_progression] W8-10@120 W8-10@120 W8-10@120 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w04 Upper — Strength · db_curl [double_progression] W10-12@25 W10-12@25 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w04 Lower — Strength · bb_back_squat [top_set_backoff] T4-6@200 B6-8@170 B6-8@170 B6-8@170 — top set +5 lb
+w04 Lower — Strength · bb_rdl [double_progression] W8-10@135 W8-10@135 W8-10@135 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w04 Lower — Strength · leg_press [double_progression] W10-12@270 W10-12@270 W10-12@270 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w04 Lower — Strength · calf_raise [double_progression] W10-12@97.5 W10-12@97.5 W10-12@97.5 — +2.5 lb, restart at 10 reps
+w04 Lower — Strength · plank [timed_progression] W30s W30s W30s
+w04 Upper — Volume · bb_incline_bench [double_progression] W8-10@115 W8-10@115 W8-10@115 W8-10@115 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w04 Upper — Volume · chest_supported_row [double_progression] W10-12@110 W10-12@110 W10-12@110 W10-12@110 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w04 Upper — Volume · db_shoulder_press [double_progression] W10-12@35 W10-12@35 W10-12@35 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w04 Upper — Volume · lateral_raise [double_progression] W12-15@15 W12-15@15 W12-15@15 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w04 Upper — Volume · triceps_pushdown [double_progression] W10-12@50 W10-12@50 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w04 Upper — Volume · cable_curl [double_progression] W10-12@30 W10-12@30 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w04 Lower — Volume · bb_front_squat [double_progression] W8-10@135 W8-10@135 W8-10@135 W8-10@135 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w04 Lower — Volume · hip_thrust [double_progression] W10-12@185 W10-12@185 W10-12@185 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w04 Lower — Volume · leg_curl [double_progression] W12-15@90 W12-15@90 W12-15@90 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w04 Lower — Volume · walking_lunge [rep_progression] W10-10 W10-10 W10-10 — stalled — hold variation, add one set
+w04 Lower — Volume · calf_raise [double_progression] W12-15@90 W12-15@90 W12-15@90
+w05 Upper — Strength · bb_bench [top_set_backoff] T4-6@145 B6-8@122.5 B6-8@122.5 B6-8@122.5 — top set +2.5 lb
+w05 Upper — Strength · bb_row [double_progression] W6-8@87.5 W6-8@87.5 W6-8@87.5 W6-8@87.5 — stalled — micro-deload −7.5%, rebuild
+w05 Upper — Strength · bb_ohp [double_progression] W8-10@60 W8-10@60 W8-10@60 — stalled — micro-deload −7.5%, rebuild
+w05 Upper — Strength · lat_pulldown [double_progression] W8-10@110 W8-10@110 W8-10@110 — stalled — micro-deload −7.5%, rebuild
+w05 Upper — Strength · db_curl [double_progression] W10-12@22.5 W10-12@22.5 — stalled — micro-deload −7.5%, rebuild
+w05 Lower — Strength · bb_back_squat [top_set_backoff] T4-6@205 B6-8@175 B6-8@175 B6-8@175 — top set +5 lb
+w05 Lower — Strength · bb_rdl [double_progression] W8-10@125 W8-10@125 W8-10@125 — stalled — micro-deload −7.5%, rebuild
+w05 Lower — Strength · leg_press [double_progression] W10-12@250 W10-12@250 W10-12@250 — stalled — micro-deload −7.5%, rebuild
+w05 Lower — Strength · calf_raise [double_progression] W10-12@100 W10-12@100 W10-12@100 — +2.5 lb, restart at 10 reps
+w05 Lower — Strength · plank [timed_progression] W30s W30s W30s
+w05 Upper — Volume · bb_incline_bench [double_progression] W8-10@107.5 W8-10@107.5 W8-10@107.5 W8-10@107.5 — stalled — micro-deload −7.5%, rebuild
+w05 Upper — Volume · chest_supported_row [double_progression] W10-12@102.5 W10-12@102.5 W10-12@102.5 W10-12@102.5 — stalled — micro-deload −7.5%, rebuild
+w05 Upper — Volume · db_shoulder_press [double_progression] W10-12@32.5 W10-12@32.5 W10-12@32.5 — stalled — micro-deload −7.5%, rebuild
+w05 Upper — Volume · lateral_raise [double_progression] W12-15@15 W12-15@15 W12-15@15 — stalled — micro-deload −7.5%, rebuild
+w05 Upper — Volume · triceps_pushdown [double_progression] W10-12@47.5 W10-12@47.5 — stalled — micro-deload −7.5%, rebuild
+w05 Upper — Volume · cable_curl [double_progression] W10-12@27.5 W10-12@27.5 — stalled — micro-deload −7.5%, rebuild
+w05 Lower — Volume · bb_front_squat [double_progression] W8-10@125 W8-10@125 W8-10@125 W8-10@125 — stalled — micro-deload −7.5%, rebuild
+w05 Lower — Volume · hip_thrust [double_progression] W10-12@170 W10-12@170 W10-12@170 — stalled — micro-deload −7.5%, rebuild
+w05 Lower — Volume · leg_curl [double_progression] W12-15@82.5 W12-15@82.5 W12-15@82.5 — stalled — micro-deload −7.5%, rebuild
+w05 Lower — Volume · walking_lunge [rep_progression] W10-10 W10-10 W10-10
+w05 Lower — Volume · calf_raise [double_progression] W12-15@90 W12-15@90 W12-15@90
+w06 Upper — Strength · bb_bench [top_set_backoff] T4-6@147.5 B6-8@125 B6-8@125 B6-8@125 — top set +2.5 lb
+w06 Upper — Strength · bb_row [double_progression] W6-8@87.5 W6-8@87.5 W6-8@87.5 W6-8@87.5 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w06 Upper — Strength · bb_ohp [double_progression] W8-10@60 W8-10@60 W8-10@60 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w06 Upper — Strength · lat_pulldown [double_progression] W8-10@110 W8-10@110 W8-10@110 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w06 Upper — Strength · db_curl [double_progression] W10-12@22.5 W10-12@22.5 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w06 Lower — Strength · bb_back_squat [top_set_backoff] T4-6@210 B6-8@177.5 B6-8@177.5 B6-8@177.5 — top set +5 lb
+w06 Lower — Strength · bb_rdl [double_progression] W8-10@125 W8-10@125 W8-10@125 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w06 Lower — Strength · leg_press [double_progression] W10-12@250 W10-12@250 W10-12@250 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w06 Lower — Strength · calf_raise [double_progression] W10-12@102.5 W10-12@102.5 W10-12@102.5 — +2.5 lb, restart at 10 reps
+w06 Lower — Strength · plank [timed_progression] W30s W30s W30s
+w06 Upper — Volume · bb_incline_bench [double_progression] W8-10@107.5 W8-10@107.5 W8-10@107.5 W8-10@107.5 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w06 Upper — Volume · chest_supported_row [double_progression] W10-12@102.5 W10-12@102.5 W10-12@102.5 W10-12@102.5 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w06 Upper — Volume · db_shoulder_press [double_progression] W10-12@32.5 W10-12@32.5 W10-12@32.5 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w06 Upper — Volume · lateral_raise [double_progression] W12-15@15 W12-15@15 W12-15@15 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w06 Upper — Volume · triceps_pushdown [double_progression] W10-12@47.5 W10-12@47.5 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w06 Upper — Volume · cable_curl [double_progression] W10-12@27.5 W10-12@27.5 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w06 Lower — Volume · bb_front_squat [double_progression] W8-10@125 W8-10@125 W8-10@125 W8-10@125 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w06 Lower — Volume · hip_thrust [double_progression] W10-12@170 W10-12@170 W10-12@170 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w06 Lower — Volume · leg_curl [double_progression] W12-15@82.5 W12-15@82.5 W12-15@82.5 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w06 Lower — Volume · walking_lunge [rep_progression] W10-10 W10-10 W10-10
+w06 Lower — Volume · calf_raise [double_progression] W12-15@90 W12-15@90 W12-15@90
+w07 Upper — Strength · bb_bench [top_set_backoff] T4-6@150 B6-8@127.5 B6-8@127.5 B6-8@127.5 — top set +2.5 lb
+w07 Upper — Strength · bb_row [double_progression] W6-8@80 W6-8@80 W6-8@80 W6-8@80 — stalled — micro-deload −7.5%, rebuild
+w07 Upper — Strength · bb_ohp [double_progression] W8-10@55 W8-10@55 W8-10@55 — stalled — micro-deload −7.5%, rebuild
+w07 Upper — Strength · lat_pulldown [double_progression] W8-10@102.5 W8-10@102.5 W8-10@102.5 — stalled — micro-deload −7.5%, rebuild
+w07 Upper — Strength · db_curl [double_progression] W10-12@20 W10-12@20 — stalled — micro-deload −7.5%, rebuild
+w07 Lower — Strength · bb_back_squat [top_set_backoff] T4-6@215 B6-8@182.5 B6-8@182.5 B6-8@182.5 — top set +5 lb
+w07 Lower — Strength · bb_rdl [double_progression] W8-10@115 W8-10@115 W8-10@115 — stalled — micro-deload −7.5%, rebuild
+w07 Lower — Strength · leg_press [double_progression] W10-12@232.5 W10-12@232.5 W10-12@232.5 — stalled — micro-deload −7.5%, rebuild
+w07 Lower — Strength · calf_raise [double_progression] W10-12@105 W10-12@105 W10-12@105 — +2.5 lb, restart at 10 reps
+w07 Lower — Strength · plank [timed_progression] W30s W30s W30s
+w07 Upper — Volume · bb_incline_bench [double_progression] W8-10@100 W8-10@100 W8-10@100 W8-10@100 — stalled — micro-deload −7.5%, rebuild
+w07 Upper — Volume · chest_supported_row [double_progression] W10-12@95 W10-12@95 W10-12@95 W10-12@95 — stalled — micro-deload −7.5%, rebuild
+w07 Upper — Volume · db_shoulder_press [double_progression] W10-12@30 W10-12@30 W10-12@30 — stalled — micro-deload −7.5%, rebuild
+w07 Upper — Volume · lateral_raise [double_progression] W12-15@15 W12-15@15 W12-15@15 — stalled — micro-deload −7.5%, rebuild
+w07 Upper — Volume · triceps_pushdown [double_progression] W10-12@45 W10-12@45 — stalled — micro-deload −7.5%, rebuild
+w07 Upper — Volume · cable_curl [double_progression] W10-12@25 W10-12@25 — stalled — micro-deload −7.5%, rebuild
+w07 Lower — Volume · bb_front_squat [double_progression] W8-10@115 W8-10@115 W8-10@115 W8-10@115 — stalled — micro-deload −7.5%, rebuild
+w07 Lower — Volume · hip_thrust [double_progression] W10-12@157.5 W10-12@157.5 W10-12@157.5 — stalled — micro-deload −7.5%, rebuild
+w07 Lower — Volume · leg_curl [double_progression] W12-15@77.5 W12-15@77.5 W12-15@77.5 — stalled — micro-deload −7.5%, rebuild
+w07 Lower — Volume · walking_lunge [rep_progression] W10-10 W10-10 W10-10 W10-10 — stalled — hold variation, add one set
+w07 Lower — Volume · calf_raise [double_progression] W12-15@90 W12-15@90 W12-15@90
+w08 Upper — Strength · bb_bench [top_set_backoff] T4-6@152.5 B6-8@130 B6-8@130 B6-8@130 — top set +2.5 lb
+w08 Upper — Strength · bb_row [double_progression] W6-8@80 W6-8@80 W6-8@80 W6-8@80 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w08 Upper — Strength · bb_ohp [double_progression] W8-10@55 W8-10@55 W8-10@55 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w08 Upper — Strength · lat_pulldown [double_progression] W8-10@102.5 W8-10@102.5 W8-10@102.5 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w08 Upper — Strength · db_curl [double_progression] W10-12@20 W10-12@20 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w08 Lower — Strength · bb_back_squat [top_set_backoff] T4-6@220 B6-8@187.5 B6-8@187.5 B6-8@187.5 — top set +5 lb
+w08 Lower — Strength · bb_rdl [double_progression] W8-10@115 W8-10@115 W8-10@115 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w08 Lower — Strength · leg_press [double_progression] W10-12@232.5 W10-12@232.5 W10-12@232.5 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w08 Lower — Strength · calf_raise [double_progression] W10-12@107.5 W10-12@107.5 W10-12@107.5 — +2.5 lb, restart at 10 reps
+w08 Lower — Strength · plank [timed_progression] W30s W30s W30s
+w08 Upper — Volume · bb_incline_bench [double_progression] W8-10@100 W8-10@100 W8-10@100 W8-10@100 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w08 Upper — Volume · chest_supported_row [double_progression] W10-12@95 W10-12@95 W10-12@95 W10-12@95 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w08 Upper — Volume · db_shoulder_press [double_progression] W10-12@30 W10-12@30 W10-12@30 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w08 Upper — Volume · lateral_raise [double_progression] W12-15@15 W12-15@15 W12-15@15 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w08 Upper — Volume · triceps_pushdown [double_progression] W10-12@45 W10-12@45 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w08 Upper — Volume · cable_curl [double_progression] W10-12@25 W10-12@25 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w08 Lower — Volume · bb_front_squat [double_progression] W8-10@115 W8-10@115 W8-10@115 W8-10@115 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w08 Lower — Volume · hip_thrust [double_progression] W10-12@157.5 W10-12@157.5 W10-12@157.5 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w08 Lower — Volume · leg_curl [double_progression] W12-15@77.5 W12-15@77.5 W12-15@77.5 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w08 Lower — Volume · walking_lunge [rep_progression] W10-10 W10-10 W10-10 W10-10
+w08 Lower — Volume · calf_raise [double_progression] W12-15@90 W12-15@90 W12-15@90
+w09 Upper — Strength · bb_bench [top_set_backoff] T4-6@155 B6-8@132.5 B6-8@132.5 B6-8@132.5 — top set +2.5 lb
+w09 Upper — Strength · bb_row [double_progression] W6-8@75 W6-8@75 W6-8@75 W6-8@75 — stalled — micro-deload −7.5%, rebuild
+w09 Upper — Strength · bb_ohp [double_progression] W8-10@50 W8-10@50 W8-10@50 — stalled — micro-deload −7.5%, rebuild
+w09 Upper — Strength · lat_pulldown [double_progression] W8-10@95 W8-10@95 W8-10@95 — stalled — micro-deload −7.5%, rebuild
+w09 Upper — Strength · db_curl [double_progression] W10-12@17.5 W10-12@17.5 — stalled — micro-deload −7.5%, rebuild
+w09 Lower — Strength · bb_back_squat [top_set_backoff] T4-6@225 B6-8@192.5 B6-8@192.5 B6-8@192.5 — top set +5 lb
+w09 Lower — Strength · bb_rdl [double_progression] W8-10@107.5 W8-10@107.5 W8-10@107.5 — stalled — micro-deload −7.5%, rebuild
+w09 Lower — Strength · leg_press [double_progression] W10-12@215 W10-12@215 W10-12@215 — stalled — micro-deload −7.5%, rebuild
+w09 Lower — Strength · calf_raise [double_progression] W10-12@110 W10-12@110 W10-12@110 — +2.5 lb, restart at 10 reps
+w09 Lower — Strength · plank [timed_progression] W30s W30s W30s
+w09 Upper — Volume · bb_incline_bench [double_progression] W8-10@92.5 W8-10@92.5 W8-10@92.5 W8-10@92.5 — stalled — micro-deload −7.5%, rebuild
+w09 Upper — Volume · chest_supported_row [double_progression] W10-12@87.5 W10-12@87.5 W10-12@87.5 W10-12@87.5 — stalled — micro-deload −7.5%, rebuild
+w09 Upper — Volume · db_shoulder_press [double_progression] W10-12@27.5 W10-12@27.5 W10-12@27.5 — stalled — micro-deload −7.5%, rebuild
+w09 Upper — Volume · lateral_raise [double_progression] W12-15@15 W12-15@15 W12-15@15 — stalled — micro-deload −7.5%, rebuild
+w09 Upper — Volume · triceps_pushdown [double_progression] W10-12@42.5 W10-12@42.5 — stalled — micro-deload −7.5%, rebuild
+w09 Upper — Volume · cable_curl [double_progression] W10-12@22.5 W10-12@22.5 — stalled — micro-deload −7.5%, rebuild
+w09 Lower — Volume · bb_front_squat [double_progression] W8-10@107.5 W8-10@107.5 W8-10@107.5 W8-10@107.5 — stalled — micro-deload −7.5%, rebuild
+w09 Lower — Volume · hip_thrust [double_progression] W10-12@145 W10-12@145 W10-12@145 — stalled — micro-deload −7.5%, rebuild
+w09 Lower — Volume · leg_curl [double_progression] W12-15@72.5 W12-15@72.5 W12-15@72.5 — stalled — micro-deload −7.5%, rebuild
+w09 Lower — Volume · walking_lunge [rep_progression] W10-10 W10-10 W10-10 W10-10
+w09 Lower — Volume · calf_raise [double_progression] W12-15@90 W12-15@90 W12-15@90
+w10 Upper — Strength · bb_bench [top_set_backoff] T4-6@157.5 B6-8@135 B6-8@135 B6-8@135 — top set +2.5 lb
+w10 Upper — Strength · bb_row [double_progression] W6-8@75 W6-8@75 W6-8@75 W6-8@75 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w10 Upper — Strength · bb_ohp [double_progression] W8-10@50 W8-10@50 W8-10@50 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w10 Upper — Strength · lat_pulldown [double_progression] W8-10@95 W8-10@95 W8-10@95 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w10 Upper — Strength · db_curl [double_progression] W10-12@17.5 W10-12@17.5 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w10 Lower — Strength · bb_back_squat [top_set_backoff] T4-6@230 B6-8@195 B6-8@195 B6-8@195 — top set +5 lb
+w10 Lower — Strength · bb_rdl [double_progression] W8-10@107.5 W8-10@107.5 W8-10@107.5 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w10 Lower — Strength · leg_press [double_progression] W10-12@215 W10-12@215 W10-12@215 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w10 Lower — Strength · calf_raise [double_progression] W10-12@112.5 W10-12@112.5 W10-12@112.5 — +2.5 lb, restart at 10 reps
+w10 Lower — Strength · plank [timed_progression] W30s W30s W30s
+w10 Upper — Volume · bb_incline_bench [double_progression] W8-10@92.5 W8-10@92.5 W8-10@92.5 W8-10@92.5 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w10 Upper — Volume · chest_supported_row [double_progression] W10-12@87.5 W10-12@87.5 W10-12@87.5 W10-12@87.5 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w10 Upper — Volume · db_shoulder_press [double_progression] W10-12@27.5 W10-12@27.5 W10-12@27.5 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w10 Upper — Volume · lateral_raise [double_progression] W12-15@15 W12-15@15 W12-15@15 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w10 Upper — Volume · triceps_pushdown [double_progression] W10-12@42.5 W10-12@42.5 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w10 Upper — Volume · cable_curl [double_progression] W10-12@22.5 W10-12@22.5 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w10 Lower — Volume · bb_front_squat [double_progression] W8-10@107.5 W8-10@107.5 W8-10@107.5 W8-10@107.5 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w10 Lower — Volume · hip_thrust [double_progression] W10-12@145 W10-12@145 W10-12@145 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w10 Lower — Volume · leg_curl [double_progression] W12-15@72.5 W12-15@72.5 W12-15@72.5 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w10 Lower — Volume · walking_lunge [rep_progression] W10-10 W10-10 W10-10 W10-10 W10-10 — stalled — hold variation, add one set
+w10 Lower — Volume · calf_raise [double_progression] W12-15@90 W12-15@90 W12-15@90
+w11 Upper — Strength · bb_bench [top_set_backoff] T4-6@160 B6-8@135 B6-8@135 B6-8@135 — top set +2.5 lb
+w11 Upper — Strength · bb_row [double_progression] W6-8@70 W6-8@70 W6-8@70 W6-8@70 — stalled — micro-deload −7.5%, rebuild
+w11 Upper — Strength · bb_ohp [double_progression] W8-10@47.5 W8-10@47.5 W8-10@47.5 — stalled — micro-deload −7.5%, rebuild
+w11 Upper — Strength · lat_pulldown [double_progression] W8-10@87.5 W8-10@87.5 W8-10@87.5 — stalled — micro-deload −7.5%, rebuild
+w11 Upper — Strength · db_curl [double_progression] W10-12@15 W10-12@15 — stalled — micro-deload −7.5%, rebuild
+w11 Lower — Strength · bb_back_squat [top_set_backoff] T4-6@235 B6-8@200 B6-8@200 B6-8@200 — top set +5 lb
+w11 Lower — Strength · bb_rdl [double_progression] W8-10@100 W8-10@100 W8-10@100 — stalled — micro-deload −7.5%, rebuild
+w11 Lower — Strength · leg_press [double_progression] W10-12@200 W10-12@200 W10-12@200 — stalled — micro-deload −7.5%, rebuild
+w11 Lower — Strength · calf_raise [double_progression] W10-12@115 W10-12@115 W10-12@115 — +2.5 lb, restart at 10 reps
+w11 Lower — Strength · plank [timed_progression] W30s W30s W30s
+w11 Upper — Volume · bb_incline_bench [double_progression] W8-10@85 W8-10@85 W8-10@85 W8-10@85 — stalled — micro-deload −7.5%, rebuild
+w11 Upper — Volume · chest_supported_row [double_progression] W10-12@80 W10-12@80 W10-12@80 W10-12@80 — stalled — micro-deload −7.5%, rebuild
+w11 Upper — Volume · db_shoulder_press [double_progression] W10-12@25 W10-12@25 W10-12@25 — stalled — micro-deload −7.5%, rebuild
+w11 Upper — Volume · lateral_raise [double_progression] W12-15@15 W12-15@15 W12-15@15 — stalled — micro-deload −7.5%, rebuild
+w11 Upper — Volume · triceps_pushdown [double_progression] W10-12@40 W10-12@40 — stalled — micro-deload −7.5%, rebuild
+w11 Upper — Volume · cable_curl [double_progression] W10-12@20 W10-12@20 — stalled — micro-deload −7.5%, rebuild
+w11 Lower — Volume · bb_front_squat [double_progression] W8-10@100 W8-10@100 W8-10@100 W8-10@100 — stalled — micro-deload −7.5%, rebuild
+w11 Lower — Volume · hip_thrust [double_progression] W10-12@135 W10-12@135 W10-12@135 — stalled — micro-deload −7.5%, rebuild
+w11 Lower — Volume · leg_curl [double_progression] W12-15@67.5 W12-15@67.5 W12-15@67.5 — stalled — micro-deload −7.5%, rebuild
+w11 Lower — Volume · walking_lunge [rep_progression] W10-10 W10-10 W10-10 W10-10 W10-10
+w11 Lower — Volume · calf_raise [double_progression] W12-15@90 W12-15@90 W12-15@90
+w12 Upper — Strength · bb_bench [top_set_backoff] T4-6@162.5 B6-8@137.5 B6-8@137.5 B6-8@137.5 — top set +2.5 lb
+w12 Upper — Strength · bb_row [double_progression] W6-8@70 W6-8@70 W6-8@70 W6-8@70 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w12 Upper — Strength · bb_ohp [double_progression] W8-10@47.5 W8-10@47.5 W8-10@47.5 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w12 Upper — Strength · lat_pulldown [double_progression] W8-10@87.5 W8-10@87.5 W8-10@87.5 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w12 Upper — Strength · db_curl [double_progression] W10-12@15 W10-12@15 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w12 Lower — Strength · bb_back_squat [top_set_backoff] T4-6@240 B6-8@205 B6-8@205 B6-8@205 — top set +5 lb
+w12 Lower — Strength · bb_rdl [double_progression] W8-10@100 W8-10@100 W8-10@100 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w12 Lower — Strength · leg_press [double_progression] W10-12@200 W10-12@200 W10-12@200 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w12 Lower — Strength · calf_raise [double_progression] W10-12@117.5 W10-12@117.5 W10-12@117.5 — +2.5 lb, restart at 10 reps
+w12 Lower — Strength · plank [timed_progression] W30s W30s W30s
+w12 Upper — Volume · bb_incline_bench [double_progression] W8-10@85 W8-10@85 W8-10@85 W8-10@85 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w12 Upper — Volume · chest_supported_row [double_progression] W10-12@80 W10-12@80 W10-12@80 W10-12@80 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w12 Upper — Volume · db_shoulder_press [double_progression] W10-12@25 W10-12@25 W10-12@25 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w12 Upper — Volume · lateral_raise [double_progression] W12-15@15 W12-15@15 W12-15@15 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w12 Upper — Volume · triceps_pushdown [double_progression] W10-12@40 W10-12@40 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w12 Upper — Volume · cable_curl [double_progression] W10-12@20 W10-12@20 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w12 Lower — Volume · bb_front_squat [double_progression] W8-10@100 W8-10@100 W8-10@100 W8-10@100 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w12 Lower — Volume · hip_thrust [double_progression] W10-12@135 W10-12@135 W10-12@135 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w12 Lower — Volume · leg_curl [double_progression] W12-15@67.5 W12-15@67.5 W12-15@67.5 — stalled — swap to the next exercise in the pattern ladder for 4 weeks
+w12 Lower — Volume · walking_lunge [rep_progression] W10-10 W10-10 W10-10 W10-10 W10-10
+w12 Lower — Volume · calf_raise [double_progression] W12-15@90 W12-15@90 W12-15@90"
+`;

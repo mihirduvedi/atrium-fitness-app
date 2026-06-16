@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  scaffold:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: scaffold
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: scaffold/package-lock.json
+      - run: npm ci
+      - name: Typecheck all workspaces
+        run: npm run typecheck
+      - name: Test all workspaces
+        run: npm test
+      - name: Engine coverage
+        run: npm run coverage --workspace @atrium/engine
