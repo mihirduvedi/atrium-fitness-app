@@ -154,7 +154,7 @@ export default function SummaryScreen() {
           <Eyebrow>Keep this forever</Eyebrow>
           <Text style={[t.text('bodyM'), { marginBottom: space[3] }]}>
             Your training lives on this phone and syncs anonymously. Sign in with Apple to keep it
-            if you ever switch devices — same data, nothing moves.
+            if you ever switch devices.
           </Text>
           <Button
             title=" Sign in with Apple"
