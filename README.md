@@ -8,7 +8,7 @@ The project explores how a fitness product can combine strong technical foundati
 
 Most fitness apps are good at collecting workout data, but less effective at helping users understand what to do next. Atrium is built around the idea that a workout tracker should eventually become an interpretation layer: helping users log training, recognize progress, understand patterns, and receive clearer guidance over time.
 
-This project also reflects my interest in combining computer science, fitness, and creative tools. I am especially interested in how design, branding, onboarding, and product storytelling can make technical projects feel more complete and accessible.
+This project also reflects my interest in combining computer science and creative tools. I am especially interested in how design, branding, onboarding, and product storytelling can make technical projects feel more complete and accessible.
 
 ## Current status
 
@@ -91,7 +91,7 @@ atrium-fitness-app/
 
 Atrium is also a project where I want to explore how creative tools can support student-built software. Beyond the code, the product needs a visual identity, onboarding content, app store assets, demo videos, and launch materials.
 
-This is where tools like Adobe Premiere Pro, Photoshop, Illustrator, Express, and Firefly could play a major role: turning a functional app into a polished product experience.
+This is where tools like Adobe Premiere Pro, Photoshop, Illustrator, Express, and Firefly could play a major role.
 
 ## Running the project
 
