@@ -9,9 +9,19 @@ import { useCallback, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useApp } from '@/AppContext';
 import { Button, Card, ConsistencyMeter, Eyebrow, ReadinessRing, ScreenScroll, Teaser } from '@/components/ui';
-import { getActiveProgram, getNextProgramDay, planSession, type NextDay } from '@/db/queries';
+import {
+  discardEmptyInProgressWorkouts,
+  getActiveProgram,
+  getInProgressWorkoutOverview,
+  getNextProgramDay,
+  getWorkoutDraft,
+  planSession,
+  type InProgressWorkoutOverview,
+  type NextDay,
+} from '@/db/queries';
 import { getReadinessSignal, type ReadinessSignal } from '@/health/readiness';
 import { radius, space, useTheme } from '@/theme';
+import { displayWorkoutName, formatWorkoutDayName, formatWorkoutFocusName } from '@/workoutNames';
 
 const READINESS: { value: Readiness; label: string }[] = [
   { value: 'green', label: 'Ready' },
@@ -44,25 +54,26 @@ const OVERRIDE_COPY: Record<Readiness, { score: number; title: string; body: str
 };
 
 function dayTitle(name: string): string {
-  const focus = name.split(' — ')[0] ?? name;
-  if (focus === 'Upper') return 'Upper body';
-  if (focus === 'Lower') return 'Lower body';
-  if (focus === 'Full') return 'Full body';
-  return focus;
+  return formatWorkoutFocusName(name);
 }
 
 function formatSets(p: SessionPlan['prescriptions'][number]): string {
-  const top = p.sets.find((s) => s.kind === 'top');
-  const backoffs = p.sets.filter((s) => s.kind === 'backoff');
+  const workSets = p.sets.filter((s) => !s.isWarmup);
+  const top = workSets.find((s) => s.kind === 'top');
+  const backoffs = workSets.filter((s) => s.kind === 'backoff');
   if (top && backoffs.length > 0) {
     return `1 × ${top.targetReps[0]}–${top.targetReps[1]} + ${backoffs.length} × ${backoffs[0]!.targetReps[0]}–${backoffs[0]!.targetReps[1]}`;
   }
-  const first = p.sets[0];
+  const first = workSets[0];
   if (!first) return '';
-  if (first.targetSeconds !== undefined) return `${p.sets.length} × ${first.targetSeconds}s`;
+  if (first.targetSeconds !== undefined) return `${workSets.length} × ${first.targetSeconds}s`;
   return first.targetReps[0] === first.targetReps[1]
-    ? `${p.sets.length} × ${first.targetReps[0]}`
-    : `${p.sets.length} × ${first.targetReps[0]}–${first.targetReps[1]}`;
+    ? `${workSets.length} × ${first.targetReps[0]}`
+    : `${workSets.length} × ${first.targetReps[0]}–${first.targetReps[1]}`;
+}
+
+function startedLabel(iso: string): string {
+  return new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }
 
 export default function TodayScreen() {
@@ -73,6 +84,7 @@ export default function TodayScreen() {
   const [archetypeName, setArchetypeName] = useState('');
   const [readinessSignal, setReadinessSignal] = useState<ReadinessSignal | null>(null);
   const [manualReadiness, setManualReadiness] = useState<Readiness | null>(null);
+  const [activeWorkout, setActiveWorkout] = useState<InProgressWorkoutOverview | null>(null);
   const [needsSetup, setNeedsSetup] = useState(false);
   const effectiveReadiness = manualReadiness ?? readinessSignal?.readiness ?? 'green';
 
@@ -81,6 +93,13 @@ export default function TodayScreen() {
       let live = true;
       (async () => {
         const signal = await getReadinessSignal(db, userId);
+        const firstActive = await getInProgressWorkoutOverview(db, userId);
+        let keepActiveId = firstActive?.workoutId ?? null;
+        if (firstActive && firstActive.completedSets === 0) {
+          keepActiveId = (await getWorkoutDraft(db, firstActive.workoutId)) ? firstActive.workoutId : null;
+        }
+        await discardEmptyInProgressWorkouts(db, userId, newId, keepActiveId);
+        const active = await getInProgressWorkoutOverview(db, userId);
         const program = await getActiveProgram(db, userId);
         if (!program) {
           if (live) {
@@ -88,6 +107,7 @@ export default function TodayScreen() {
             setPlan(null);
             setArchetypeName('');
             setReadinessSignal(signal);
+            setActiveWorkout(active);
             setNeedsSetup(true);
           }
           return;
@@ -98,6 +118,7 @@ export default function TodayScreen() {
         if (!live) return;
         setNeedsSetup(false);
         setReadinessSignal(signal);
+        setActiveWorkout(active);
         setDay(next);
         setPlan(p);
         setArchetypeName(archetypeById.get(program.archetype_id)?.name ?? program.archetype_id);
@@ -112,6 +133,10 @@ export default function TodayScreen() {
 
   const readinessCopy = manualReadiness ? OVERRIDE_COPY[manualReadiness] : readinessSignal ?? OVERRIDE_COPY.green;
   const exerciseCount = Object.keys(exerciseCatalog).length;
+  const resumeWorkout = () => {
+    if (!activeWorkout) return;
+    router.push({ pathname: '/workout', params: { workoutId: activeWorkout.workoutId } });
+  };
 
   return (
     <ScreenScroll>
@@ -130,6 +155,17 @@ export default function TodayScreen() {
             Four quick answers pick the safest program match from the engine.
           </Text>
           <Button title="Set up plan" onPress={() => router.replace('/onboarding')} />
+        </Card>
+      )}
+
+      {activeWorkout && !needsSetup && (
+        <Card>
+          <Eyebrow>Active workout</Eyebrow>
+          <Text style={t.text('displayS')}>Resume {displayWorkoutName(activeWorkout.customName, activeWorkout.dayName)}</Text>
+          <Text style={[t.text('bodyS', 'textMuted'), { marginTop: space[1], marginBottom: space[4] }]}>
+            {activeWorkout.completedSets} set{activeWorkout.completedSets === 1 ? '' : 's'} logged · Started {startedLabel(activeWorkout.startedAt)}
+          </Text>
+          <Button title="Resume workout" onPress={resumeWorkout} />
         </Card>
       )}
 
@@ -169,7 +205,7 @@ export default function TodayScreen() {
       {day && plan && (
         <Card>
           <Eyebrow>{`Week ${day.week} · Day ${day.dayIndex + 1} of ${day.daysPerWeek}`}</Eyebrow>
-          <Text style={t.text('displayM')}>{day.name}</Text>
+          <Text style={t.text('displayM')}>{formatWorkoutDayName(day.name)}</Text>
           <Text style={[t.text('bodyS', 'textMuted'), { marginTop: 2, marginBottom: space[3] }]}>
             52 min est · {archetypeName} · {plan.prescriptions.length} exercises
           </Text>
@@ -190,8 +226,19 @@ export default function TodayScreen() {
               </View>
             ))}
           </View>
-          <View style={{ marginTop: space[4] }}>
-            <Button title="Start workout" onPress={() => router.push({ pathname: '/workout', params: { readiness: effectiveReadiness } })} />
+          <View style={{ flexDirection: 'row', gap: space[3], marginTop: space[4] }}>
+            <Button
+              title={activeWorkout ? 'Resume workout' : 'Start workout'}
+              onPress={() => {
+                if (activeWorkout) {
+                  resumeWorkout();
+                  return;
+                }
+                router.push({ pathname: '/workout', params: { readiness: effectiveReadiness } });
+              }}
+              style={{ flex: 1 }}
+            />
+            <Button title="Program" ghost onPress={() => router.push('/program')} style={{ width: 104 }} />
           </View>
         </Card>
       )}

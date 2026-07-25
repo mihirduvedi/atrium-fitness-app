@@ -1,13 +1,14 @@
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Alert, Pressable, Text, View } from 'react-native';
 import Svg, { Path, Rect } from 'react-native-svg';
-import { isAnonymous } from '@/auth';
+import { defaultAccountStatus, getAccountStatus, isAnonymous, upgradeWithApple, type AccountStatus } from '@/auth';
 import { useApp } from '@/AppContext';
 import { Card, Eyebrow, ScreenScroll } from '@/components/ui';
 import { getActiveProgram, type ProgramInfo } from '@/db/queries';
+import { canRequestHealthKit, requestHealthKitImport } from '@/health/healthkit';
 import { getHealthSampleCount } from '@/health/readiness';
-import { borderWidth, radius, space, useTheme } from '@/theme';
+import { borderWidth, radius, space, useAppearancePreference, useTheme, type AppearancePreference } from '@/theme';
 
 interface ProfileRow {
   goal: string;
@@ -29,6 +30,8 @@ interface ProfileData {
   stats: ProfileStats;
   anonymous: boolean;
   healthSamples: number;
+  healthKitAvailable: boolean;
+  account: AccountStatus;
 }
 
 const emptyData: ProfileData = {
@@ -37,6 +40,8 @@ const emptyData: ProfileData = {
   stats: { workouts: 0, prs: 0 },
   anonymous: true,
   healthSamples: 0,
+  healthKitAvailable: false,
+  account: defaultAccountStatus,
 };
 
 function monthYear(iso?: string | null) {
@@ -73,11 +78,6 @@ function unitsLabel(units?: string | null) {
   return units === 'kg' ? 'kg / km' : 'lb / mi';
 }
 
-function accountLabel(syncEnabled: boolean, anonymous: boolean) {
-  if (!syncEnabled) return 'On-device';
-  return anonymous ? 'Anonymous sync' : 'Apple account';
-}
-
 function LockIcon() {
   const t = useTheme();
   return (
@@ -96,6 +96,70 @@ function LockIcon() {
         <Path d="M8.3 10.2V8a3.7 3.7 0 0 1 7.4 0v2.2" fill="none" stroke={t.colors.textMuted} strokeWidth={1.9} strokeLinecap="round" />
       </Svg>
     </View>
+  );
+}
+
+function AccountRow({
+  status,
+  busy,
+  onPress,
+}: {
+  status: AccountStatus;
+  busy: boolean;
+  onPress: () => void;
+}) {
+  const t = useTheme();
+  const enabled = status.canUpgradeWithApple && !busy;
+  return (
+    <Pressable
+      accessibilityRole={enabled ? 'button' : undefined}
+      disabled={!enabled}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        minHeight: 68,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: space[3],
+        opacity: pressed ? 0.62 : 1,
+      })}
+    >
+      <View
+        style={{
+          width: 38,
+          height: 38,
+          borderRadius: 19,
+          backgroundColor: status.signedIn ? t.colors.actionInk : t.colors.bgSurface2,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Text style={t.text('bodyM', status.signedIn ? 'actionOnInk' : 'textMuted')}>A</Text>
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text numberOfLines={1} style={t.text('bodyM')}>
+          Account · {status.accountLabel}
+        </Text>
+        <Text numberOfLines={2} style={t.text('bodyS', 'textMuted')}>
+          {status.appleLabel}
+        </Text>
+      </View>
+      <View
+        style={{
+          minWidth: 68,
+          minHeight: 32,
+          borderRadius: radius.control,
+          borderWidth: borderWidth.hairline,
+          borderColor: enabled ? t.colors.borderStrong : t.colors.borderHairline,
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingHorizontal: 10,
+        }}
+      >
+        <Text numberOfLines={1} adjustsFontSizeToFit style={t.text('labelCaps', enabled ? 'textPrimary' : 'textMuted')}>
+          {busy ? 'Working' : status.actionLabel}
+        </Text>
+      </View>
+    </Pressable>
   );
 }
 
@@ -125,11 +189,22 @@ function StatPill({ value, label }: { value: string; label: string }) {
   );
 }
 
-function ProfileRowItem({ label, detail, last }: { label: string; detail: string; last?: boolean }) {
+function ProfileRowItem({
+  label,
+  detail,
+  last,
+  onPress,
+}: {
+  label: string;
+  detail: string;
+  last?: boolean;
+  onPress?: () => void;
+}) {
   const t = useTheme();
   return (
     <Pressable
       accessibilityRole="button"
+      onPress={onPress}
       style={({ pressed }) => ({
         minHeight: 54,
         flexDirection: 'row',
@@ -151,10 +226,74 @@ function ProfileRowItem({ label, detail, last }: { label: string; detail: string
   );
 }
 
+function AppearanceSetting() {
+  const t = useTheme();
+  const { mode, setPreference } = useAppearancePreference();
+  const options: { value: AppearancePreference; label: string }[] = [
+    { value: 'day', label: 'Light' },
+    { value: 'night', label: 'Dark' },
+  ];
+  return (
+    <View
+      style={{
+        minHeight: 62,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: space[3],
+        borderBottomWidth: borderWidth.hairline,
+        borderBottomColor: t.colors.borderHairline,
+      }}
+    >
+      <Text numberOfLines={1} style={[t.text('bodyM'), { flex: 1, minWidth: 0 }]}>
+        Appearance
+      </Text>
+      <View
+        style={{
+          width: 138,
+          height: 36,
+          borderRadius: radius.control,
+          borderWidth: borderWidth.hairline,
+          borderColor: t.colors.borderHairline,
+          backgroundColor: t.colors.bgSurface2,
+          flexDirection: 'row',
+          padding: 3,
+        }}
+      >
+        {options.map((option) => {
+          const active = option.value === mode;
+          return (
+            <Pressable
+              key={option.value}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              onPress={() => setPreference(option.value)}
+              style={({ pressed }) => ({
+                flex: 1,
+                borderRadius: radius.control - 3,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: active ? t.colors.bgCanvas : 'transparent',
+                opacity: pressed ? 0.72 : 1,
+              })}
+            >
+              <Text numberOfLines={1} adjustsFontSizeToFit style={t.text('labelCaps', active ? 'textPrimary' : 'textMuted')}>
+                {option.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 export default function ProfileScreen() {
   const t = useTheme();
-  const { db, userId, sync } = useApp();
+  const { db, userId, sync, newId } = useApp();
   const [data, setData] = useState<ProfileData>(emptyData);
+  const [authBusy, setAuthBusy] = useState(false);
+  const [healthBusy, setHealthBusy] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -184,6 +323,8 @@ export default function ProfileScreen() {
         const program = await getActiveProgram(db, userId);
         const anonymous = await isAnonymous();
         const healthSamples = await getHealthSampleCount(db, userId);
+        const healthKitAvailable = await canRequestHealthKit();
+        const account = await getAccountStatus(!!sync);
         if (live) {
           setData({
             profile,
@@ -191,14 +332,45 @@ export default function ProfileScreen() {
             stats: stats ?? emptyData.stats,
             anonymous,
             healthSamples,
+            healthKitAvailable,
+            account,
           });
         }
       })();
       return () => {
         live = false;
       };
-    }, [db, userId]),
+    }, [db, sync, userId]),
   );
+
+  const handleAppleUpgrade = useCallback(async () => {
+    if (!data.account.canUpgradeWithApple || authBusy) return;
+    setAuthBusy(true);
+    const result = await upgradeWithApple();
+    const [anonymous, account] = await Promise.all([isAnonymous(), getAccountStatus(!!sync)]);
+    setData((current) => ({ ...current, anonymous, account }));
+    setAuthBusy(false);
+    if (!result.ok) {
+      Alert.alert('Sign in with Apple', result.reason ?? 'Could not complete sign-in.');
+    }
+  }, [authBusy, data.account.canUpgradeWithApple, sync]);
+
+  const handleHealthImport = useCallback(async () => {
+    if (healthBusy) return;
+    setHealthBusy(true);
+    const result = await requestHealthKitImport(db, userId, newId);
+    const [healthSamples, healthKitAvailable] = await Promise.all([
+      getHealthSampleCount(db, userId),
+      canRequestHealthKit(),
+    ]);
+    setData((current) => ({ ...current, healthSamples, healthKitAvailable }));
+    setHealthBusy(false);
+    if (!result.ok) {
+      Alert.alert('Health import', result.reason ?? 'Could not import Health data.');
+      return;
+    }
+    Alert.alert('Health import', `Imported ${result.imported ?? 0} readiness samples.`);
+  }, [db, healthBusy, newId, userId]);
 
   const equipment = useMemo(() => parseEquipment(data.profile?.equipment), [data.profile?.equipment]);
   const coachFacts = [
@@ -214,7 +386,13 @@ export default function ProfileScreen() {
   const profileLine = data.profile
     ? `${titleCase(data.profile.goal)} · ${titleCase(data.profile.experience)} · ${data.profile.days_per_week} days/wk`
     : 'Training profile';
-  const healthDetail = data.healthSamples > 0 ? `${data.healthSamples} samples` : 'Not connected';
+  const healthDetail = healthBusy
+    ? 'Importing'
+    : data.healthSamples > 0
+      ? `${data.healthSamples} samples`
+      : data.healthKitAvailable
+        ? 'Import'
+        : 'iOS build only';
 
   return (
     <ScreenScroll>
@@ -236,7 +414,7 @@ export default function ProfileScreen() {
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={t.text('screenTitle')}>Athlete</Text>
           <Text numberOfLines={1} style={t.text('bodyS', 'textMuted')}>
-            {accountLabel(!!sync, data.anonymous)} · {monthYear(data.profile?.created_at)}
+            {data.account.accountLabel} · {monthYear(data.profile?.created_at)}
           </Text>
         </View>
       </View>
@@ -254,11 +432,16 @@ export default function ProfileScreen() {
       </Card>
 
       <Card style={{ paddingVertical: 4, paddingHorizontal: 16 }}>
+        <AccountRow status={data.account} busy={authBusy} onPress={handleAppleUpgrade} />
+      </Card>
+
+      <Card style={{ paddingVertical: 4, paddingHorizontal: 16 }}>
         <ProfileRowItem label="What your coach knows" detail={`${coachFacts} facts`} />
-        <ProfileRowItem label="Connected health data" detail={healthDetail} />
+        <ProfileRowItem label="Connected health data" detail={healthDetail} onPress={handleHealthImport} />
+        <AppearanceSetting />
         <ProfileRowItem label="Units" detail={unitsLabel(data.profile?.units)} />
         <ProfileRowItem label="Export my data" detail="CSV" />
-        <ProfileRowItem label="Plan status" detail="Work in progress" last />
+        <ProfileRowItem label="Plan status" detail="Program view" onPress={() => router.push('/program')} last />
       </Card>
 
       <Card>

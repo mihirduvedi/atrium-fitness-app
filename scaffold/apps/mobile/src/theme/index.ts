@@ -1,3 +1,5 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Platform, useColorScheme, type TextStyle } from 'react-native';
 import {
   borderWidth,
@@ -13,6 +15,73 @@ import {
 } from '@atrium/tokens';
 
 export { borderWidth, layout, radius, space };
+
+export type AppearancePreference = ColorMode;
+
+interface AppearanceContextValue {
+  preference: AppearancePreference | null;
+  mode: ColorMode;
+  setPreference: (preference: AppearancePreference) => void;
+  togglePreference: () => void;
+}
+
+const APPEARANCE_KEY = 'atrium.appearance';
+const AppearanceContext = createContext<AppearanceContextValue | null>(null);
+
+function systemMode(scheme: ReturnType<typeof useColorScheme>): ColorMode {
+  return scheme === 'dark' ? 'night' : 'day';
+}
+
+export function ThemePreferenceProvider({ children }: { children: ReactNode }) {
+  const scheme = useColorScheme();
+  const fallbackMode = systemMode(scheme);
+  const [preference, setPreferenceState] = useState<AppearancePreference | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    AsyncStorage.getItem(APPEARANCE_KEY).then((value) => {
+      if (!live) return;
+      setPreferenceState(value === 'day' || value === 'night' ? value : null);
+    }).catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const setPreference = useCallback((next: AppearancePreference) => {
+    setPreferenceState(next);
+    AsyncStorage.setItem(APPEARANCE_KEY, next).catch(() => {});
+  }, []);
+
+  const mode = preference ?? fallbackMode;
+  const togglePreference = useCallback(() => {
+    setPreference(mode === 'night' ? 'day' : 'night');
+  }, [mode, setPreference]);
+
+  const value = useMemo(() => ({
+    preference,
+    mode,
+    setPreference,
+    togglePreference,
+  }), [mode, preference, setPreference, togglePreference]);
+
+  return createElement(AppearanceContext.Provider, { value }, children);
+}
+
+export function useAppearancePreference() {
+  const value = useContext(AppearanceContext);
+  if (!value) {
+    const scheme = useColorScheme();
+    const mode = systemMode(scheme);
+    return {
+      preference: null,
+      mode,
+      setPreference: () => {},
+      togglePreference: () => {},
+    } satisfies AppearanceContextValue;
+  }
+  return value;
+}
 
 /**
  * The only place font roles are mapped to concrete families. Display is
@@ -59,7 +128,8 @@ export interface Theme {
 
 export function useTheme(): Theme {
   const scheme = useColorScheme();
-  const mode: ColorMode = scheme === 'dark' ? 'night' : 'day';
+  const appearance = useContext(AppearanceContext);
+  const mode: ColorMode = appearance?.mode ?? systemMode(scheme);
   const c = colors[mode];
   return {
     mode,

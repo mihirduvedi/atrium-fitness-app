@@ -10,7 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.atrium.mobile"
+      "bundleIdentifier": "app.atrium.mobile.mihir"
     },
     "android": {
       "package": "app.atrium.mobile",
@@ -26,7 +26,21 @@
     "plugins": [
       "expo-router",
       "expo-sqlite",
-      "expo-apple-authentication",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Atrium lets you choose progress photos to store privately on this device.",
+          "cameraPermission": "Atrium lets you take progress photos to store privately on this device."
+        }
+      ],
+      [
+        "@kingstinct/react-native-healthkit",
+        {
+          "NSHealthShareUsageDescription": "Atrium uses sleep, heart, step, and workout data to tune readiness.",
+          "NSHealthUpdateUsageDescription": false,
+          "background": false
+        }
+      ],
       [
         "expo-splash-screen",
         {

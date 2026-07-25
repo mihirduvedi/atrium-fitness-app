@@ -212,8 +212,9 @@ export interface PrescribedSet {
   setIndex: number;
   weight?: number;
   targetReps: RepRange;
-  /** 'top' | 'backoff' | 'work' */
-  kind: 'top' | 'backoff' | 'work';
+  /** 'warmup' | 'top' | 'backoff' | 'work' */
+  kind: 'warmup' | 'top' | 'backoff' | 'work';
+  isWarmup?: boolean;
   /** Seconds, for timed work. */
   targetSeconds?: number;
 }

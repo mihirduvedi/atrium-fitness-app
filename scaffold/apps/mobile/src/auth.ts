@@ -1,4 +1,5 @@
 import * as Apple from 'expo-apple-authentication';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { supabase } from './supabase';
 
@@ -9,6 +10,14 @@ import { supabase } from './supabase';
  * which UPGRADES the anonymous user in place — same user_id, no data
  * migration. There is no email/password path.
  */
+
+function hasAppleSignInEntitlementConfig() {
+  const plugins = Constants.expoConfig?.plugins ?? [];
+  return plugins.some((plugin) => {
+    if (plugin === 'expo-apple-authentication') return true;
+    return Array.isArray(plugin) && plugin[0] === 'expo-apple-authentication';
+  });
+}
 
 /**
  * Ensure a Supabase session exists. Returns the authenticated user id, or
@@ -40,6 +49,9 @@ export async function signInAnonymouslyIfNeeded(knownUserId: string | null): Pro
 export async function upgradeWithApple(): Promise<{ ok: boolean; reason?: string }> {
   if (!supabase) return { ok: false, reason: 'no backend configured' };
   try {
+    if (!hasAppleSignInEntitlementConfig()) {
+      return { ok: false, reason: 'Sign in with Apple is not enabled in this local HealthKit development build.' };
+    }
     if (!(await Apple.isAvailableAsync())) return { ok: false, reason: 'Apple sign-in unavailable' };
     const credential = await Apple.signInAsync({
       requestedScopes: [Apple.AppleAuthenticationScope.FULL_NAME, Apple.AppleAuthenticationScope.EMAIL],
@@ -73,6 +85,7 @@ export async function upgradeWithApple(): Promise<{ ok: boolean; reason?: string
 /** Whether this runtime can show the Apple upgrade CTA without crashing. */
 export async function canUpgradeWithApple(): Promise<boolean> {
   if (!supabase || Platform.OS !== 'ios') return false;
+  if (!hasAppleSignInEntitlementConfig()) return false;
   try {
     return await Apple.isAvailableAsync();
   } catch {
@@ -89,4 +102,79 @@ export async function isAnonymous(): Promise<boolean> {
   } catch {
     return true;
   }
+}
+
+export interface AccountStatus {
+  accountLabel: string;
+  appleLabel: string;
+  actionLabel: string;
+  canUpgradeWithApple: boolean;
+  signedIn: boolean;
+  anonymous: boolean;
+}
+
+export const defaultAccountStatus: AccountStatus = {
+  accountLabel: 'On-device',
+  appleLabel: 'Checking account status',
+  actionLabel: 'Status',
+  canUpgradeWithApple: false,
+  signedIn: false,
+  anonymous: true,
+};
+
+/** Profile-facing account copy, including Expo Go/native-build availability. */
+export async function getAccountStatus(syncEnabled: boolean): Promise<AccountStatus> {
+  const anonymous = await isAnonymous();
+  if (!syncEnabled) {
+    return {
+      accountLabel: 'On-device',
+      appleLabel: 'Anonymous sync starts when the backend is reachable',
+      actionLabel: 'Status',
+      canUpgradeWithApple: false,
+      signedIn: false,
+      anonymous: true,
+    };
+  }
+  if (!anonymous) {
+    return {
+      accountLabel: 'Signed in',
+      appleLabel: 'Apple account',
+      actionLabel: 'Signed in',
+      canUpgradeWithApple: false,
+      signedIn: true,
+      anonymous: false,
+    };
+  }
+  if (Platform.OS !== 'ios') {
+    return {
+      accountLabel: 'Anonymous sync',
+      appleLabel: 'Sign in with Apple is available in an iOS build',
+      actionLabel: 'Status',
+      canUpgradeWithApple: false,
+      signedIn: false,
+      anonymous: true,
+    };
+  }
+  if (await canUpgradeWithApple()) {
+    return {
+      accountLabel: 'Anonymous sync',
+      appleLabel: 'Sign in with Apple available',
+      actionLabel: 'Sign in',
+      canUpgradeWithApple: true,
+      signedIn: false,
+      anonymous: true,
+    };
+  }
+  return {
+    accountLabel: 'Anonymous sync',
+    appleLabel: Constants.appOwnership === 'expo'
+      ? 'iOS build only · unavailable in Expo Go'
+      : hasAppleSignInEntitlementConfig()
+        ? 'Available in iOS build'
+        : 'Unavailable in this local HealthKit build',
+    actionLabel: 'Status',
+    canUpgradeWithApple: false,
+    signedIn: false,
+    anonymous: true,
+  };
 }

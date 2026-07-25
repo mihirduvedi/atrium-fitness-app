@@ -1,15 +1,18 @@
 import { exerciseCatalog } from '@atrium/engine';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Image, Pressable, Text, View } from 'react-native';
 import { useApp } from '@/AppContext';
 import { Card, Eyebrow, ScreenScroll, Teaser } from '@/components/ui';
+import { getProgressPhotoStats, type ProgressPhotoStats } from '@/photos/progressPhotos';
 import { borderWidth, radius, space, useTheme } from '@/theme';
+import { displayWorkoutName } from '@/workoutNames';
 
 interface WorkoutTrendRow {
   id: string;
   started_at: string;
   day_name: string | null;
+  custom_name: string | null;
   volume: number;
   sets: number;
 }
@@ -30,6 +33,7 @@ interface ProgressData {
   workouts: WorkoutTrendRow[];
   prs: PrRow[];
   bestLift: BestLiftRow | null;
+  photoStats: ProgressPhotoStats;
 }
 
 const PR_LABEL: Record<string, string> = {
@@ -68,24 +72,80 @@ function Metric({ label, value, accent }: { label: string; value: string; accent
   );
 }
 
+function titleCase(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function PhotoStatusCard({ stats }: { stats: ProgressPhotoStats }) {
+  const t = useTheme();
+  const latest = stats.latest;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={() => router.push('/photos')}
+      style={({ pressed }) => ({ opacity: pressed ? 0.62 : 1 })}
+    >
+      <Card style={{ padding: 0, overflow: 'hidden' }}>
+        <View style={{ minHeight: 118, flexDirection: 'row', alignItems: 'stretch' }}>
+          {latest ? (
+            <Image
+              source={{ uri: latest.image_uri }}
+              resizeMode="cover"
+              style={{ width: 92, backgroundColor: t.colors.bgSurface2 }}
+            />
+          ) : (
+            <View
+              style={{
+                width: 92,
+                backgroundColor: t.colors.bgSurface2,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Text style={t.text('heroNumL', 'textMuted')}>+</Text>
+            </View>
+          )}
+          <View style={{ flex: 1, minWidth: 0, padding: 16, justifyContent: 'center' }}>
+            <Eyebrow>Progress photos</Eyebrow>
+            <Text numberOfLines={1} style={t.text('displayS')}>
+              {stats.count > 0 ? `${stats.count} saved` : 'Start a photo log'}
+            </Text>
+            <Text numberOfLines={2} style={[t.text('bodyS', 'textMuted'), { marginTop: 4 }]}>
+              {latest ? `${titleCase(latest.pose)} - ${dayLabel(latest.taken_at)}` : 'Private on-device timeline'}
+            </Text>
+          </View>
+          <View style={{ width: 34, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={t.text('bodyM', 'textMuted')}>›</Text>
+          </View>
+        </View>
+      </Card>
+    </Pressable>
+  );
+}
+
 export default function ProgressScreen() {
   const t = useTheme();
   const { db, userId } = useApp();
-  const [data, setData] = useState<ProgressData>({ workouts: [], prs: [], bestLift: null });
+  const [data, setData] = useState<ProgressData>({
+    workouts: [],
+    prs: [],
+    bestLift: null,
+    photoStats: { count: 0, firstTakenAt: null, latest: null },
+  });
 
   useFocusEffect(
     useCallback(() => {
       let live = true;
       (async () => {
         const workouts = await db.getAllAsync<WorkoutTrendRow>(
-          `select w.id, w.started_at, d.name as day_name,
+          `select w.id, w.started_at, d.name as day_name, w.notes as custom_name,
                   coalesce(sum(coalesce(s.weight, 0) * coalesce(s.reps, 0)), 0) as volume,
                   count(s.id) as sets
              from workouts w
              left join program_days d on d.id = w.program_day_id
              left join sets s on s.workout_id = w.id and s.deleted_at is null and s.is_warmup = 0
             where w.user_id = ? and w.ended_at is not null and w.deleted_at is null
-            group by w.id
+            group by w.id, w.started_at, d.name, w.notes
             having count(s.id) > 0
             order by w.started_at desc
             limit 8`,
@@ -111,10 +171,11 @@ export default function ProgressScreen() {
             limit 1`,
           userId,
         );
+        const photoStats = await getProgressPhotoStats(db, userId);
         const uniquePrs = prs.filter(
           (pr, index, all) => all.findIndex((x) => `${x.exercise_id}:${x.type}` === `${pr.exercise_id}:${pr.type}`) === index,
         );
-        if (live) setData({ workouts, prs: uniquePrs, bestLift });
+        if (live) setData({ workouts, prs: uniquePrs, bestLift, photoStats });
       })();
       return () => {
         live = false;
@@ -139,6 +200,8 @@ export default function ProgressScreen() {
         <Metric label="7-day volume" value={`${compact(weekVolume)} lb`} accent />
         <Metric label="Sessions" value={String(thisWeek.length)} />
       </View>
+
+      <PhotoStatusCard stats={data.photoStats} />
 
       <Card>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: space[3], alignItems: 'flex-start' }}>
@@ -232,7 +295,7 @@ export default function ProgressScreen() {
           >
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text numberOfLines={1} style={t.text('bodyM')}>
-                {w.day_name ?? 'Workout'}
+                {displayWorkoutName(w.custom_name, w.day_name)}
               </Text>
               <Text style={t.text('bodyS', 'textMuted')}>{dayLabel(w.started_at)}</Text>
             </View>

@@ -1,24 +1,31 @@
 import type { ReactNode } from 'react';
+import { usePathname } from 'expo-router';
 import { Pressable, ScrollView, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ProfileShortcut } from '@/components/AtriumTabBar';
 import { borderWidth, layout, radius, space, useTheme } from '@/theme';
 
 export function ScreenScroll({
   children,
   bottomInset = layout.tabBarClearance,
   contentContainerStyle,
+  scrollEnabled = true,
 }: {
   children: ReactNode;
   bottomInset?: number;
   contentContainerStyle?: StyleProp<ViewStyle>;
+  scrollEnabled?: boolean;
 }) {
   const t = useTheme();
+  const pathname = usePathname();
+  const showProfileShortcut = !pathname.includes('onboarding') && !pathname.includes('profile') && !pathname.includes('workout');
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: t.colors.bgCanvas }}>
       <ScrollView
         style={{ flex: 1 }}
         alwaysBounceVertical
         keyboardShouldPersistTaps="handled"
+        scrollEnabled={scrollEnabled}
         showsVerticalScrollIndicator={false}
         contentInsetAdjustmentBehavior="never"
         contentContainerStyle={[
@@ -27,10 +34,24 @@ export function ScreenScroll({
             paddingTop: space[2],
             paddingBottom: bottomInset,
             gap: layout.cardGap,
+            position: 'relative',
           },
           contentContainerStyle,
         ]}
       >
+        {showProfileShortcut && (
+          <View
+            pointerEvents="box-none"
+            style={{
+              position: 'absolute',
+              top: space[2],
+              right: layout.screenMargin,
+              zIndex: 20,
+            }}
+          >
+            <ProfileShortcut />
+          </View>
+        )}
         {children}
       </ScrollView>
     </SafeAreaView>
@@ -120,7 +141,18 @@ export function Button({
         style,
       ]}
     >
-      <Text style={t.text('button', ghost ? 'textPrimary' : 'actionOnInk')}>{title}</Text>
+      <Text
+        style={[
+          t.text('button', ghost ? 'textPrimary' : 'actionOnInk'),
+          {
+            textAlign: 'center',
+            includeFontPadding: false,
+            transform: [{ translateY: 0.5 }],
+          },
+        ]}
+      >
+        {title}
+      </Text>
     </Pressable>
   );
 }

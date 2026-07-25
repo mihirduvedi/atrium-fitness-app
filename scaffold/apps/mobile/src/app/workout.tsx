@@ -1,20 +1,32 @@
-import { exerciseCatalog, type Readiness, type SessionPlan } from '@atrium/engine';
+import { exerciseCatalog, type Pattern, type Readiness, type RuleId, type SessionPlan } from '@atrium/engine';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Alert, Animated, LayoutAnimation, PanResponder, Pressable, Text, TextInput, Vibration, View } from 'react-native';
 import { useApp } from '@/AppContext';
-import { Card, Eyebrow, ScreenCenter, ScreenScroll, Teaser } from '@/components/ui';
+import { Button, Card, Eyebrow, ScreenCenter, ScreenScroll } from '@/components/ui';
 import {
+  discardEmptyInProgressWorkouts,
+  discardWorkout,
   finishWorkout,
   getActiveProgram,
+  getInProgressWorkoutOverview,
   getNextProgramDay,
+  getProgramDayContext,
   getPreviousSession,
+  getWorkoutDraft,
+  getWorkoutOverview,
+  listExercises,
   logSet,
   planSession,
+  saveWorkoutDraft,
   startWorkout,
+  type InProgressWorkoutOverview,
   type NextDay,
+  type WorkoutDraftData,
+  unlogSet,
 } from '@/db/queries';
 import { borderWidth, radius, space, useTheme } from '@/theme';
+import { displayWorkoutName } from '@/workoutNames';
 
 interface SetUiState {
   weight: string;
@@ -31,58 +43,538 @@ const fmtClock = (s: number) =>
   `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 
 function formatSets(p: SessionPlan['prescriptions'][number]): string {
-  const first = p.sets[0];
+  const workSets = p.sets.filter((set) => !set.isWarmup);
+  const first = workSets[0];
   if (!first) return '';
-  if (first.targetSeconds !== undefined) return `${p.sets.length} × ${first.targetSeconds}s`;
+  if (first.targetSeconds !== undefined) return `${workSets.length} × ${first.targetSeconds}s`;
   return first.targetReps[0] === first.targetReps[1]
-    ? `${p.sets.length} × ${first.targetReps[0]}`
-    : `${p.sets.length} × ${first.targetReps[0]}-${first.targetReps[1]}`;
+    ? `${workSets.length} × ${first.targetReps[0]}`
+    : `${workSets.length} × ${first.targetReps[0]}-${first.targetReps[1]}`;
+}
+
+const TIMELINE_ROW_HEIGHT = 62;
+
+const COMPOUND_PATTERNS = new Set<string>(['squat', 'hinge', 'hpress', 'vpress', 'hpull', 'vpull', 'lunge', 'carry']);
+
+function defaultRule(pattern: string, equipment: string): RuleId {
+  return equipment === 'bodyweight' ? 'rep_progression' : 'double_progression';
+}
+
+function defaultRest(pattern: string) {
+  return COMPOUND_PATTERNS.has(pattern) ? 150 : 90;
+}
+
+function targetIndexForDrag(from: number, deltaY: number, total: number, rowHeight: number) {
+  if (Math.abs(deltaY) < 8) return from;
+  const offset = Math.round(deltaY / rowHeight);
+  return Math.max(0, Math.min(from + offset, total - 1));
+}
+
+function insertionIndexForTarget(from: number, target: number) {
+  if (from === target) return null;
+  return target > from ? target + 1 : target;
+}
+
+function shiftedRowOffset(index: number, startIndex: number, targetIndex: number, rowHeight: number) {
+  if (targetIndex > startIndex && index > startIndex && index <= targetIndex) return -rowHeight;
+  if (targetIndex < startIndex && index >= targetIndex && index < startIndex) return rowHeight;
+  return 0;
+}
+
+function activeIndexAfterQueueReorder(current: number, total: number) {
+  return Math.max(0, Math.min(current, total - 1));
+}
+
+function initialSetUiForPlan(plan: SessionPlan): Record<string, SetUiState> {
+  const ui: Record<string, SetUiState> = {};
+  for (const prescription of plan.prescriptions) {
+    for (const set of prescription.sets) {
+      ui[`${prescription.slotId}:${set.setIndex}`] = {
+        weight: set.weight !== undefined ? String(set.weight) : '',
+        reps: String(set.targetSeconds ?? set.targetReps[1]),
+        done: false,
+      };
+    }
+  }
+  return ui;
+}
+
+function animateReorderLayout() {
+  LayoutAnimation.configureNext({
+    duration: 140,
+    update: { type: LayoutAnimation.Types.easeInEaseOut },
+    create: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
+    delete: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
+  });
+}
+
+function DragHandle({ dragging }: { dragging: boolean }) {
+  const t = useTheme();
+
+  return (
+    <View
+      accessibilityLabel="Reorder movement"
+      accessibilityRole="adjustable"
+      accessibilityHint="Drag up or down to reorder."
+      style={{
+        width: 54,
+        height: 54,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 4,
+        borderRadius: radius.control,
+        backgroundColor: dragging ? t.colors.bgSurface2 : 'transparent',
+      }}
+    >
+      {[0, 1, 2].map((line) => (
+        <View
+          key={line}
+          style={{
+            width: 18,
+            height: 2,
+            borderRadius: 1,
+            backgroundColor: t.colors.textFaint,
+          }}
+        />
+      ))}
+    </View>
+  );
+}
+
+function InsertionMarker({
+  index,
+  rowHeight,
+  left,
+  right,
+}: {
+  index: number | null;
+  rowHeight: number;
+  left: number;
+  right: number;
+}) {
+  const t = useTheme();
+  const translateY = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (index === null) {
+      Animated.timing(opacity, {
+        toValue: 0,
+        duration: 80,
+        useNativeDriver: true,
+      }).start();
+      return;
+    }
+
+    Animated.parallel([
+      Animated.spring(translateY, {
+        toValue: index * rowHeight,
+        stiffness: 320,
+        damping: 28,
+        mass: 0.55,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 60,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [index, opacity, rowHeight, translateY]);
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={{
+        position: 'absolute',
+        zIndex: 30,
+        left,
+        right,
+        top: -2,
+        height: 5,
+        borderRadius: 3,
+        backgroundColor: t.colors.dataBlue,
+        opacity,
+        shadowColor: '#000',
+        shadowOpacity: 0.16,
+        shadowRadius: 5,
+        shadowOffset: { width: 0, height: 2 },
+        transform: [{ translateY }],
+      }}
+    />
+  );
+}
+
+function TimelineRow({
+  prescription,
+  index,
+  total,
+  active,
+  done,
+  onSelect,
+  onDragStart,
+  onDragMove,
+  onDragEnd,
+  exerciseName,
+  draggingPreview,
+  shiftY,
+}: {
+  prescription: SessionPlan['prescriptions'][number];
+  index: number;
+  total: number;
+  active: boolean;
+  done: boolean;
+  onSelect: () => void;
+  onDragStart: (slotId: string, index: number) => void;
+  onDragMove: (slotId: string, deltaY: number) => void;
+  onDragEnd: (slotId: string, deltaY: number | null) => void;
+  exerciseName: string;
+  draggingPreview: boolean;
+  shiftY: number;
+}) {
+  const t = useTheme();
+  const status = active ? 'Now' : done ? 'Done' : 'Queued';
+  const slotIdRef = useRef(prescription.slotId);
+  const indexRef = useRef(index);
+  const dragStartIndex = useRef<number | null>(null);
+  const lastDragDeltaY = useRef(0);
+  const onDragStartRef = useRef(onDragStart);
+  const onDragMoveRef = useRef(onDragMove);
+  const onDragEndRef = useRef(onDragEnd);
+  const panResponder = useRef<ReturnType<typeof PanResponder.create> | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const rowDragging = dragging || draggingPreview;
+  const animatedShiftY = useRef(new Animated.Value(0)).current;
+
+  slotIdRef.current = prescription.slotId;
+  indexRef.current = index;
+  onDragStartRef.current = onDragStart;
+  onDragMoveRef.current = onDragMove;
+  onDragEndRef.current = onDragEnd;
+
+  useEffect(() => {
+    Animated.spring(animatedShiftY, {
+      toValue: shiftY,
+      stiffness: 420,
+      damping: 34,
+      mass: 0.65,
+      useNativeDriver: true,
+    }).start();
+  }, [animatedShiftY, shiftY]);
+
+  const startDrag = () => {
+    if (dragStartIndex.current !== null) return;
+    dragStartIndex.current = indexRef.current;
+    lastDragDeltaY.current = 0;
+    setDragging(true);
+    onDragStartRef.current(slotIdRef.current, indexRef.current);
+  };
+
+  const updateDrag = (deltaY: number) => {
+    if (dragStartIndex.current === null) startDrag();
+    lastDragDeltaY.current = deltaY;
+    onDragMoveRef.current(slotIdRef.current, deltaY);
+  };
+
+  const finishDrag = (deltaY: number | null) => {
+    dragStartIndex.current = null;
+    lastDragDeltaY.current = 0;
+    setDragging(false);
+    onDragEndRef.current(slotIdRef.current, deltaY);
+  };
+
+  if (!panResponder.current) {
+    panResponder.current = PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponder: (_event, gestureState) => Math.abs(gestureState.dy) > 2,
+      onMoveShouldSetPanResponderCapture: (_event, gestureState) => Math.abs(gestureState.dy) > 2,
+      onPanResponderGrant: startDrag,
+      onPanResponderMove: (_event, gestureState) => updateDrag(gestureState.dy),
+      onPanResponderRelease: (_event, gestureState) => {
+        const finalDeltaY = Math.abs(gestureState.dy) >= Math.abs(lastDragDeltaY.current) ? gestureState.dy : lastDragDeltaY.current;
+        finishDrag(Math.abs(finalDeltaY) < 8 ? null : finalDeltaY);
+      },
+      onPanResponderTerminate: () => finishDrag(null),
+      onPanResponderTerminationRequest: () => false,
+      onShouldBlockNativeResponder: () => true,
+    });
+  }
+
+  const renderRowBody = (handle: ReactNode, disabled = false) => (
+    <>
+      <View style={{ width: 20, alignItems: 'center', alignSelf: 'stretch' }}>
+        <View
+          style={{
+            flex: 1,
+            width: 1,
+            backgroundColor: index === 0 ? 'transparent' : t.colors.borderHairline,
+          }}
+        />
+        <View
+          style={{
+            width: active ? 13 : 9,
+            height: active ? 13 : 9,
+            borderRadius: active ? 7 : 5,
+            backgroundColor: active ? t.colors.actionInk : done ? t.colors.dataBlue : t.colors.bgSurface2,
+            borderWidth: active || done ? 0 : borderWidth.hairline,
+            borderColor: t.colors.borderStrong,
+          }}
+        />
+        <View
+          style={{
+            flex: 1,
+            width: 1,
+            backgroundColor: index === total - 1 ? 'transparent' : t.colors.borderHairline,
+          }}
+        />
+      </View>
+
+      <Pressable
+        disabled={disabled}
+        onPress={onSelect}
+        style={({ pressed }) => ({
+          flex: 1,
+          minWidth: 0,
+          paddingVertical: 8,
+          opacity: pressed ? 0.72 : 1,
+        })}
+      >
+        <Text style={t.text('bodyM')} numberOfLines={1}>
+          {exerciseName}
+        </Text>
+        <Text style={[t.text('dataS', active ? 'textPrimary' : 'textMuted'), { marginTop: 3 }]}>
+          {status} · {formatSets(prescription)}
+        </Text>
+      </Pressable>
+
+      {handle}
+    </>
+  );
+
+  return (
+    <Animated.View
+      style={{
+        minHeight: TIMELINE_ROW_HEIGHT,
+        position: 'relative',
+        zIndex: 0,
+        borderRadius: radius.card,
+        backgroundColor: 'transparent',
+        transform: [{ translateY: animatedShiftY }],
+      }}
+    >
+      <View
+        style={{
+          minHeight: TIMELINE_ROW_HEIGHT,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: space[3],
+          opacity: rowDragging ? 0 : 1,
+        }}
+      >
+        {renderRowBody(
+          <View {...panResponder.current.panHandlers}>
+            <DragHandle dragging={rowDragging} />
+          </View>,
+          rowDragging,
+        )}
+      </View>
+    </Animated.View>
+  );
+}
+
+function TimelineFloatingRow({
+  prescription,
+  active,
+  done,
+  exerciseName,
+  top,
+}: {
+  prescription: SessionPlan['prescriptions'][number];
+  active: boolean;
+  done: boolean;
+  exerciseName: string;
+  top: number;
+}) {
+  const t = useTheme();
+  const status = active ? 'Now' : done ? 'Done' : 'Queued';
+  return (
+    <View
+      pointerEvents="none"
+      style={{
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        top,
+        minHeight: TIMELINE_ROW_HEIGHT,
+        zIndex: 80,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: space[3],
+        borderRadius: radius.card,
+        backgroundColor: t.colors.bgSurface,
+        shadowColor: '#000',
+        shadowOpacity: 0.16,
+        shadowRadius: 16,
+        shadowOffset: { width: 0, height: 8 },
+      }}
+    >
+      <View style={{ width: 20, alignItems: 'center', justifyContent: 'center', alignSelf: 'stretch' }}>
+        <View
+          style={{
+            width: active ? 13 : 9,
+            height: active ? 13 : 9,
+            borderRadius: active ? 7 : 5,
+            backgroundColor: active ? t.colors.actionInk : done ? t.colors.dataBlue : t.colors.bgSurface2,
+            borderWidth: active || done ? 0 : borderWidth.hairline,
+            borderColor: t.colors.borderStrong,
+          }}
+        />
+      </View>
+      <View style={{ flex: 1, minWidth: 0, paddingVertical: 8 }}>
+        <Text style={t.text('bodyM')} numberOfLines={1}>
+          {exerciseName}
+        </Text>
+        <Text style={[t.text('dataS', active ? 'textPrimary' : 'textMuted'), { marginTop: 3 }]}>
+          {status} · {formatSets(prescription)}
+        </Text>
+      </View>
+      <DragHandle dragging />
+    </View>
+  );
 }
 
 export default function WorkoutScreen() {
   const t = useTheme();
-  const { db, userId, newId, sync } = useApp();
-  const params = useLocalSearchParams<{ readiness?: Readiness }>();
+  const { db, userId, newId, sync, pendingWorkoutMovement, clearPendingWorkoutMovement } = useApp();
+  const params = useLocalSearchParams<{ readiness?: Readiness; workoutId?: string }>();
 
   const [day, setDay] = useState<NextDay | null>(null);
   const [plan, setPlan] = useState<SessionPlan | null>(null);
+  const planRef = useRef<SessionPlan | null>(null);
   const [workoutId, setWorkoutId] = useState<string | null>(null);
+  const [workoutStartedAt, setWorkoutStartedAt] = useState<string | null>(null);
+  const [workoutCustomName, setWorkoutCustomName] = useState<string | null>(null);
   const [ghosts, setGhosts] = useState<Record<string, Ghost[]>>({});
+  const [exerciseNames, setExerciseNames] = useState<Record<string, string>>({});
   const [setUi, setSetUi] = useState<Record<string, SetUiState>>({});
+  const [activeIndex, setActiveIndex] = useState(0);
+  const activeIndexRef = useRef(0);
+  const draftReady = useRef(false);
+  const [timelineDragging, setTimelineDragging] = useState(false);
+  const [timelineDropLineIndex, setTimelineDropLineIndex] = useState<number | null>(null);
+  const [timelineDragVisual, setTimelineDragVisual] = useState<{ slotId: string; startIndex: number; targetIndex: number; deltaY: number } | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [rest, setRest] = useState<number | null>(null);
   const restTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastTimelineDropLine = useRef<number | null>(null);
+  const timelineDragStart = useRef<{ slotId: string; index: number } | null>(null);
 
-  // boot: plan the session against current history, then open the workout row
+  // boot: resume an unfinished draft first; otherwise plan a fresh session.
   useEffect(() => {
     let live = true;
+    draftReady.current = false;
+
+    const exerciseNameMap = (rows: Awaited<ReturnType<typeof listExercises>>) =>
+      Object.fromEntries(rows.map((exercise) => [exercise.id, exercise.name]));
+
+    const loadGhostMap = async (sessionPlan: SessionPlan, activeWorkoutId: string) => {
+      const g: Record<string, Ghost[]> = {};
+      for (const presc of sessionPlan.prescriptions) {
+        g[presc.slotId] = await getPreviousSession(db, userId, presc.exerciseId, activeWorkoutId);
+      }
+      return g;
+    };
+
+    const applyDraft = async (draft: WorkoutDraftData, names: Record<string, string>) => {
+      const g = await loadGhostMap(draft.plan, draft.workoutId);
+      if (!live) return;
+      setDay(draft.day);
+      setPlan(draft.plan);
+      planRef.current = draft.plan;
+      setWorkoutId(draft.workoutId);
+      setWorkoutStartedAt(draft.startedAt);
+      setWorkoutCustomName(draft.customName);
+      setGhosts(g);
+      setExerciseNames(names);
+      setSetUi(draft.setUi);
+      setActiveIndex(draft.activeIndex);
+      activeIndexRef.current = draft.activeIndex;
+      setRest(draft.restRemainingS);
+      draftReady.current = true;
+    };
+
+    const openExistingWorkout = async (existing: InProgressWorkoutOverview, names: Record<string, string>) => {
+      const draft = await getWorkoutDraft(db, existing.workoutId);
+      if (draft) {
+        await applyDraft(draft, names);
+        return true;
+      }
+
+      const context = existing.programDayId ? await getProgramDayContext(db, existing.programDayId) : null;
+      if (!context) return false;
+      const sessionPlan = await planSession(db, userId, context, newId, params.readiness ?? 'green');
+      const ui = initialSetUiForPlan(sessionPlan);
+      await saveWorkoutDraft(db, {
+        workoutId: existing.workoutId,
+        userId,
+        programDayId: context.dayId,
+        day: context,
+        plan: sessionPlan,
+        setUi: ui,
+        activeIndex: 0,
+        restRemainingS: null,
+      });
+      const freshDraft = await getWorkoutDraft(db, existing.workoutId);
+      if (!freshDraft) return false;
+      await applyDraft(freshDraft, names);
+      return true;
+    };
+
     (async () => {
+      const exerciseRows = await listExercises(db, userId);
+      const names = exerciseNameMap(exerciseRows);
+      const requestedWorkoutId = typeof params.workoutId === 'string' ? params.workoutId : null;
+      const requestedWorkout = requestedWorkoutId ? await getWorkoutOverview(db, requestedWorkoutId) : null;
+      const existingWorkout = requestedWorkout ?? await getInProgressWorkoutOverview(db, userId);
+      if (existingWorkout) {
+        await discardEmptyInProgressWorkouts(db, userId, newId, existingWorkout.workoutId);
+      }
+      if (existingWorkout && await openExistingWorkout(existingWorkout, names)) return;
+
       const program = await getActiveProgram(db, userId);
       if (!program) return;
       const next = await getNextProgramDay(db, program.id);
       if (!next) return;
       const p = await planSession(db, userId, next, newId, params.readiness ?? 'green');
       const wid = await startWorkout(db, userId, next.dayId, newId);
-
-      const g: Record<string, Ghost[]> = {};
-      for (const presc of p.prescriptions) {
-        g[presc.slotId] = await getPreviousSession(db, userId, presc.exerciseId, wid);
-      }
-      const ui: Record<string, SetUiState> = {};
-      for (const presc of p.prescriptions)
-        for (const s of presc.sets) {
-          ui[`${presc.slotId}:${s.setIndex}`] = {
-            weight: s.weight !== undefined ? String(s.weight) : '',
-            reps: String(s.targetSeconds ?? s.targetReps[1]),
-            done: false,
-          };
-        }
+      const overview = await getWorkoutOverview(db, wid);
+      const ui = initialSetUiForPlan(p);
+      await saveWorkoutDraft(db, {
+        workoutId: wid,
+        userId,
+        programDayId: next.dayId,
+        day: next,
+        plan: p,
+        setUi: ui,
+        activeIndex: 0,
+        restRemainingS: null,
+      });
+      const g = await loadGhostMap(p, wid);
       if (!live) return;
       setDay(next);
       setPlan(p);
+      planRef.current = p;
       setWorkoutId(wid);
+      setWorkoutStartedAt(overview?.startedAt ?? new Date().toISOString());
+      setWorkoutCustomName(overview?.customName ?? null);
       setGhosts(g);
+      setExerciseNames(names);
       setSetUi(ui);
+      setActiveIndex(0);
+      activeIndexRef.current = 0;
+      setRest(null);
+      draftReady.current = true;
     })();
     return () => {
       live = false;
@@ -90,49 +582,274 @@ export default function WorkoutScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    planRef.current = plan;
+  }, [plan]);
+
+  useEffect(() => {
+    activeIndexRef.current = activeIndex;
+  }, [activeIndex]);
+
   // session clock
   useEffect(() => {
-    const iv = setInterval(() => setElapsed((e) => e + 1), 1000);
+    if (!workoutStartedAt) return;
+    const tick = () => {
+      setElapsed(Math.max(0, Math.floor((Date.now() - Date.parse(workoutStartedAt)) / 1000)));
+    };
+    tick();
+    const iv = setInterval(tick, 1000);
     return () => clearInterval(iv);
-  }, []);
+  }, [workoutStartedAt]);
 
-  const startRest = (seconds: number) => {
+  const restRunning = rest !== null;
+
+  useEffect(() => {
+    if (!restRunning) {
+      if (restTimer.current) clearInterval(restTimer.current);
+      restTimer.current = null;
+      return;
+    }
     if (restTimer.current) clearInterval(restTimer.current);
-    setRest(seconds);
     restTimer.current = setInterval(() => {
       setRest((r) => {
-        if (r === null || r <= 1) {
-          if (restTimer.current) clearInterval(restTimer.current);
-          return null;
-        }
+        if (r === null || r <= 1) return null;
         return r - 1;
       });
     }, 1000);
+    return () => {
+      if (restTimer.current) clearInterval(restTimer.current);
+      restTimer.current = null;
+    };
+  }, [restRunning]);
+
+  useEffect(() => {
+    if (!draftReady.current || !workoutId || !day || !plan) return;
+    saveWorkoutDraft(db, {
+      workoutId,
+      userId,
+      programDayId: day.dayId,
+      day,
+      plan,
+      setUi,
+      activeIndex,
+      restRemainingS: rest,
+      restSavedAt: rest === null ? null : new Date().toISOString(),
+    }).catch(() => {});
+  }, [activeIndex, day, db, plan, rest, setUi, userId, workoutId]);
+
+  const startRest = (seconds: number) => {
+    setRest(seconds);
   };
 
-  // durable per-set write: one transaction per check — a crash loses nothing
-  const checkSet = async (slotId: string, exerciseId: string, setIndex: number, rest_s: number) => {
+  useEffect(() => {
+    if (!pendingWorkoutMovement || !plan || !day || pendingWorkoutMovement.programDayId !== day.dayId) return;
+    if (plan.prescriptions.some((prescription) => prescription.slotId === pendingWorkoutMovement.slotId)) {
+      clearPendingWorkoutMovement(pendingWorkoutMovement.id);
+      return;
+    }
+    const reps = Math.max(1, pendingWorkoutMovement.reps);
+    const sets = Math.max(1, pendingWorkoutMovement.sets);
+    const rule = defaultRule(pendingWorkoutMovement.pattern, pendingWorkoutMovement.equipment);
+    const restS = defaultRest(pendingWorkoutMovement.pattern);
+    const prescription: SessionPlan['prescriptions'][number] = {
+      slotId: pendingWorkoutMovement.slotId,
+      exerciseId: pendingWorkoutMovement.exerciseId,
+      rule,
+      rest_s: restS,
+      sets: Array.from({ length: sets }, (_, index) => ({
+        setIndex: index,
+        targetReps: [reps, reps] as [number, number],
+        kind: 'work' as const,
+      })),
+      nextState: {
+        slotId: pendingWorkoutMovement.slotId,
+        exerciseId: pendingWorkoutMovement.exerciseId,
+        pattern: pendingWorkoutMovement.pattern as Pattern,
+        rule,
+        rest_s: restS,
+        sets,
+        reps: [reps, reps] as [number, number],
+        stallCycles: 0,
+      },
+    };
+    const nextPlan = { ...plan, prescriptions: [...plan.prescriptions, prescription] };
+    planRef.current = nextPlan;
+    setPlan(nextPlan);
+    setGhosts((current) => ({ ...current, [pendingWorkoutMovement.slotId]: [] }));
+    setExerciseNames((current) => ({ ...current, [pendingWorkoutMovement.exerciseId]: pendingWorkoutMovement.exerciseName }));
+    setSetUi((current) => {
+      const next = { ...current };
+      for (const set of prescription.sets) {
+        next[`${prescription.slotId}:${set.setIndex}`] = {
+          weight: '',
+          reps: String(set.targetReps[1]),
+          done: false,
+        };
+      }
+      return next;
+    });
+    clearPendingWorkoutMovement(pendingWorkoutMovement.id);
+  }, [clearPendingWorkoutMovement, day, pendingWorkoutMovement, plan]);
+
+  const isPrescriptionDone = (presc: SessionPlan['prescriptions'][number], uiState = setUi) =>
+    presc.sets.every((set) => uiState[`${presc.slotId}:${set.setIndex}`]?.done);
+
+  const advanceFrom = (index: number) => {
+    setActiveIndex((current) => {
+      if (current !== index) return current;
+      return Math.min(index + 1, (plan?.prescriptions.length ?? 1) - 1);
+    });
+  };
+
+  const skipMovement = () => {
+    setRest(null);
+    setActiveIndex((current) => Math.min(current + 1, (plan?.prescriptions.length ?? 1) - 1));
+  };
+
+  const movePrescription = (from: number, to: number) => {
+    const currentPlan = planRef.current;
+    if (!currentPlan || from === to) return;
+    const target = Math.max(0, Math.min(to, currentPlan.prescriptions.length - 1));
+    if (from === target) return;
+    const nextPrescriptions = [...currentPlan.prescriptions];
+    const [moved] = nextPrescriptions.splice(from, 1);
+    if (!moved) return;
+    nextPrescriptions.splice(target, 0, moved);
+    const currentActiveIndex = activeIndexRef.current;
+    const nextActiveIndex = activeIndexAfterQueueReorder(currentActiveIndex, nextPrescriptions.length);
+    const currentActiveSlotId = currentPlan.prescriptions[currentActiveIndex]?.slotId;
+    const nextActiveSlotId = nextPrescriptions[nextActiveIndex]?.slotId;
+    const nextPlan = { ...currentPlan, prescriptions: nextPrescriptions };
+    planRef.current = nextPlan;
+    activeIndexRef.current = nextActiveIndex;
+    animateReorderLayout();
+    setPlan(nextPlan);
+    setActiveIndex(nextActiveIndex);
+    if (currentActiveSlotId !== nextActiveSlotId) setRest(null);
+  };
+
+  const updateTimelineDropLine = (index: number | null) => {
+    if (lastTimelineDropLine.current === index) return;
+    lastTimelineDropLine.current = index;
+    setTimelineDropLineIndex(index);
+    if (index !== null) Vibration.vibrate(8);
+  };
+
+  const applyTimelineDrag = (slotId: string, deltaY: number, showDropLine: boolean) => {
+    const currentPlan = planRef.current;
+    if (!currentPlan) return;
+    const dragStart = timelineDragStart.current;
+    if (dragStart?.slotId !== slotId) return;
+    const startIndex = dragStart.index;
+    const target = targetIndexForDrag(startIndex, deltaY, currentPlan.prescriptions.length, TIMELINE_ROW_HEIGHT);
+    setTimelineDragVisual((current) => (
+      current?.slotId === slotId ? { ...current, targetIndex: target, deltaY } : current
+    ));
+    if (showDropLine) updateTimelineDropLine(insertionIndexForTarget(startIndex, target));
+  };
+
+  const beginTimelineDrag = (slotId: string, index: number) => {
+    timelineDragStart.current = { slotId, index };
+    lastTimelineDropLine.current = null;
+    setTimelineDropLineIndex(null);
+    setTimelineDragVisual({ slotId, startIndex: index, targetIndex: index, deltaY: 0 });
+    setTimelineDragging(true);
+  };
+
+  const previewTimelineDrag = (slotId: string, deltaY: number) => {
+    applyTimelineDrag(slotId, deltaY, true);
+  };
+
+  const endTimelineDrag = (slotId: string, deltaY: number | null) => {
+    const currentPlan = planRef.current;
+    const dragStart = timelineDragStart.current;
+    if (deltaY !== null && currentPlan && dragStart?.slotId === slotId) {
+      const target = targetIndexForDrag(dragStart.index, deltaY, currentPlan.prescriptions.length, TIMELINE_ROW_HEIGHT);
+      if (target !== dragStart.index) movePrescription(dragStart.index, target);
+    }
+    timelineDragStart.current = null;
+    setTimelineDragVisual(null);
+    updateTimelineDropLine(null);
+    setTimelineDragging(false);
+  };
+
+  // durable per-set toggle: checking writes immediately; unchecking tombstones the set row.
+  const toggleSet = async (slotId: string, exerciseId: string, setIndex: number, rest_s: number, isWarmup?: boolean) => {
     if (!workoutId) return;
     const key = `${slotId}:${setIndex}`;
     const ui = setUi[key];
-    if (!ui || ui.done) return;
+    if (!ui) return;
+
+    if (ui.done) {
+      await unlogSet(db, { workoutId, exerciseId, setIndex, isWarmup }, newId);
+      setSetUi({ ...setUi, [key]: { ...ui, done: false } });
+      sync?.sync().catch(() => {});
+      return;
+    }
+
     await logSet(db, {
       workoutId,
       exerciseId,
       setIndex,
       weight: ui.weight === '' ? null : Number(ui.weight),
       reps: ui.reps === '' ? null : Number(ui.reps),
+      isWarmup,
     }, newId);
-    setSetUi((prev) => ({ ...prev, [key]: { ...ui, done: true } }));
+    const nextSetUi = { ...setUi, [key]: { ...ui, done: true } };
+    const activeNow = plan?.prescriptions[activeIndex];
+    const shouldAdvance = !!activeNow && activeNow.slotId === slotId && isPrescriptionDone(activeNow, nextSetUi);
+    setSetUi(nextSetUi);
     startRest(rest_s);
     sync?.sync().catch(() => {}); // opportunistic; offline just queues
+    if (shouldAdvance) advanceFrom(activeIndex);
   };
 
-  const finish = async () => {
+  const completeWorkout = async () => {
     if (!workoutId) return;
+    draftReady.current = false;
     await finishWorkout(db, workoutId, newId);
+    await discardEmptyInProgressWorkouts(db, userId, newId);
     sync?.sync().catch(() => {});
     router.replace({ pathname: '/summary', params: { workoutId } });
+  };
+
+  const finish = () => {
+    if (!workoutId) return;
+    Alert.alert(
+      'Finish workout?',
+      'This will skip any unlogged sets and movements, then log this workout.',
+      [
+        { text: 'Keep training', style: 'cancel' },
+        { text: 'Finish', onPress: () => void completeWorkout() },
+      ],
+    );
+  };
+
+  const pause = () => {
+    router.dismissAll();
+    router.replace('/(tabs)/today');
+  };
+
+  const discard = () => {
+    if (!workoutId) return;
+    Alert.alert(
+      'Discard workout?',
+      'This removes the in-progress workout and any sets logged in it.',
+      [
+        { text: 'Keep training', style: 'cancel' },
+        {
+          text: 'Discard',
+          style: 'destructive',
+          onPress: async () => {
+            draftReady.current = false;
+            await discardWorkout(db, workoutId, newId);
+            sync?.sync().catch(() => {});
+            router.dismissAll();
+            router.replace('/(tabs)/today');
+          },
+        },
+      ],
+    );
   };
 
   if (!plan || !day) {
@@ -143,47 +860,116 @@ export default function WorkoutScreen() {
     );
   }
 
-  const active = plan.prescriptions[0];
-  const upNext = plan.prescriptions.slice(1);
+  const active = plan.prescriptions[activeIndex] ?? plan.prescriptions[0];
   const activeExercise = active ? exerciseCatalog[active.exerciseId] : null;
+  const activeExerciseName = active ? exerciseNames[active.exerciseId] ?? activeExercise?.name ?? active.exerciseId : '';
   const activeGhosts = active ? ghosts[active.slotId] ?? [] : [];
-  const activeLast =
-    activeGhosts.length > 0
-      ? `Last session: ${activeGhosts[0]!.weight ?? '—'} lb × ${activeGhosts.map((x) => x.reps ?? '—').join(', ')}`
-      : 'First time — engine will learn from today';
+  const activeWarmups = active?.sets.filter((s) => s.isWarmup) ?? [];
+  const hasTimedSets = active?.sets.some((s) => s.targetSeconds !== undefined);
+  const activeGuide = activeGhosts.length > 0
+    ? `Use today's targets and adjust the load if the warmups feel slower than last time.`
+    : hasTimedSets
+      ? 'Hold each set for the target time with clean form.'
+      : active?.sets.some((s) => s.kind === 'top')
+        ? 'Use these sets to find a challenging top-set weight with clean form.'
+        : 'Choose a load you can complete for every target rep with clean form.';
+  const setLabel = (set: SessionPlan['prescriptions'][number]['sets'][number]) => {
+    if (set.isWarmup) return `W${activeWarmups.findIndex((x) => x.setIndex === set.setIndex) + 1}`;
+    if (set.kind === 'top') return 'Top';
+    return String(set.setIndex + 1);
+  };
+  const timelineFloatingPrescription = timelineDragVisual
+    ? plan.prescriptions.find((prescription) => prescription.slotId === timelineDragVisual.slotId)
+    : null;
+  const workoutDisplayName = displayWorkoutName(workoutCustomName, day.name);
 
   return (
     <View style={{ flex: 1 }}>
-      <ScreenScroll>
-        <View style={{ paddingHorizontal: 2, paddingTop: space[2], paddingBottom: space[3], flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', gap: space[3] }}>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text numberOfLines={1} adjustsFontSizeToFit style={t.text('screenTitle')}>{day.name}</Text>
-            <Text style={t.text('dataS', 'textFaint')}>{fmtClock(elapsed)}</Text>
+      <ScreenScroll scrollEnabled={!timelineDragging}>
+        <View style={{ paddingHorizontal: 2, paddingTop: space[2], paddingBottom: space[3], gap: 3 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: space[3] }}>
+            <Text style={[t.text('screenTitle'), { flex: 1, minWidth: 0 }]}>
+              {workoutDisplayName}
+            </Text>
+            <View style={{ flexDirection: 'row', gap: space[2] }}>
+              <Pressable
+                onPress={discard}
+                style={{
+                  minWidth: 72,
+                  height: 34,
+                  borderRadius: radius.control,
+                  borderWidth: borderWidth.hairline,
+                  borderColor: t.colors.borderHairline,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Text style={t.text('bodyS', 'textMuted')}>Discard</Text>
+              </Pressable>
+              <Pressable
+                onPress={pause}
+                style={{
+                  minWidth: 62,
+                  height: 34,
+                  borderRadius: radius.control,
+                  borderWidth: borderWidth.hairline,
+                  borderColor: t.colors.borderHairline,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Text style={t.text('bodyS', 'textMuted')}>Pause</Text>
+              </Pressable>
+              <Pressable
+                onPress={finish}
+                style={{
+                  minWidth: 76,
+                  height: 34,
+                  borderRadius: radius.control,
+                  borderWidth: borderWidth.hairline,
+                  borderColor: t.colors.borderStrong,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Text style={t.text('bodyS')}>Finish</Text>
+              </Pressable>
+            </View>
           </View>
-          <Pressable
-            onPress={finish}
-            style={{
-              minWidth: 76,
-              height: 34,
-              borderRadius: radius.control,
-              borderWidth: borderWidth.hairline,
-              borderColor: t.colors.borderStrong,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Text style={t.text('bodyS')}>Finish</Text>
-          </Pressable>
+          <Text style={t.text('dataS', 'textFaint')}>{fmtClock(elapsed)}</Text>
         </View>
 
         {active && (
           <Card>
-            <Pressable onPress={() => router.push({ pathname: '/exercise/[id]', params: { id: active.exerciseId } })}>
-              <Text style={t.text('displayS')}>{activeExercise?.name ?? active.exerciseId}</Text>
-            </Pressable>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: space[3] }}>
+              <Pressable
+                onPress={() => router.push({ pathname: '/exercise/[id]', params: { id: active.exerciseId } })}
+                style={{ flex: 1, minWidth: 0 }}
+              >
+                <Text style={t.text('displayS')} numberOfLines={1} adjustsFontSizeToFit>
+                  {activeExerciseName}
+                </Text>
+              </Pressable>
+              {activeIndex < plan.prescriptions.length - 1 && (
+                <Pressable
+                  onPress={skipMovement}
+                  style={{
+                    minWidth: 62,
+                    height: 32,
+                    borderRadius: radius.control,
+                    borderWidth: borderWidth.hairline,
+                    borderColor: t.colors.borderStrong,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginTop: -4,
+                  }}
+                >
+                  <Text style={t.text('bodyS', 'textMuted')}>Skip</Text>
+                </Pressable>
+              )}
+            </View>
             <Text style={[t.text('bodyS', 'textMuted'), { marginTop: 3, marginBottom: 13 }]}>
-              {activeExercise?.equipment} · {activeLast}
-              {active.note ? ` · ${active.note}` : ''}
+              {activeGuide}
             </Text>
 
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[2], paddingBottom: 9 }}>
@@ -218,8 +1004,8 @@ export default function WorkoutScreen() {
                     opacity: ui.done ? 0.5 : 1,
                   }}
                 >
-                  <Text style={[t.text('dataS', 'textFaint'), { width: 26 }]}>
-                    {s.kind === 'top' ? 'T' : s.setIndex + 1}
+                  <Text style={[t.text('dataS', 'textFaint'), { width: 34 }]}>
+                    {setLabel(s)}
                   </Text>
                   <Text
                     numberOfLines={1}
@@ -249,7 +1035,7 @@ export default function WorkoutScreen() {
                     ]}
                   />
                   <Pressable
-                    onPress={() => checkSet(active.slotId, active.exerciseId, s.setIndex, active.rest_s)}
+                    onPress={() => toggleSet(active.slotId, active.exerciseId, s.setIndex, active.rest_s, s.isWarmup)}
                     style={{
                       width: 32,
                       height: 32,
@@ -269,35 +1055,52 @@ export default function WorkoutScreen() {
           </Card>
         )}
 
-        {upNext.length > 0 && (
-          <Card style={{ opacity: 0.82 }}>
-            <Eyebrow>Up next</Eyebrow>
-            {upNext.map((p, i) => (
-              <View
-                key={p.slotId}
-                style={{
-                  flexDirection: 'row',
-                  justifyContent: 'space-between',
-                  gap: space[3],
-                  paddingVertical: 11,
-                  borderTopWidth: i === 0 ? 0 : borderWidth.hairline,
-                  borderTopColor: t.colors.borderHairline,
-                }}
-              >
-                <Text style={[t.text('bodyM'), { flex: 1 }]} numberOfLines={1}>
-                  {exerciseCatalog[p.exerciseId]?.name ?? p.exerciseId}
-                </Text>
-                <Text style={t.text('dataS', 'textMuted')}>{formatSets(p)}</Text>
-              </View>
-            ))}
+        {plan.prescriptions.length > 1 && (
+          <Card style={{ opacity: 0.9 }}>
+            <Eyebrow>Workout timeline</Eyebrow>
+            <View style={{ position: 'relative' }}>
+              <InsertionMarker index={timelineDropLineIndex} rowHeight={TIMELINE_ROW_HEIGHT} left={0} right={0} />
+              {plan.prescriptions.map((p, i) => (
+                <TimelineRow
+                  key={p.slotId}
+                  prescription={p}
+                  index={i}
+                  total={plan.prescriptions.length}
+                  active={i === activeIndex}
+                  done={isPrescriptionDone(p)}
+                  exerciseName={exerciseNames[p.exerciseId] ?? exerciseCatalog[p.exerciseId]?.name ?? p.exerciseId}
+                  onDragStart={beginTimelineDrag}
+                  onDragMove={previewTimelineDrag}
+                  onDragEnd={endTimelineDrag}
+                  onSelect={() => {
+                    setRest(null);
+                    setActiveIndex(i);
+                  }}
+                  draggingPreview={timelineDragVisual?.slotId === p.slotId}
+                  shiftY={timelineDragVisual ? shiftedRowOffset(i, timelineDragVisual.startIndex, timelineDragVisual.targetIndex, TIMELINE_ROW_HEIGHT) : 0}
+                />
+              ))}
+              {timelineDragVisual && timelineFloatingPrescription && (
+                <TimelineFloatingRow
+                  prescription={timelineFloatingPrescription}
+                  active={timelineFloatingPrescription.slotId === active?.slotId}
+                  done={isPrescriptionDone(timelineFloatingPrescription)}
+                  exerciseName={exerciseNames[timelineFloatingPrescription.exerciseId] ?? exerciseCatalog[timelineFloatingPrescription.exerciseId]?.name ?? timelineFloatingPrescription.exerciseId}
+                  top={timelineDragVisual.startIndex * TIMELINE_ROW_HEIGHT + timelineDragVisual.deltaY}
+                />
+              )}
+            </View>
           </Card>
         )}
 
-        <Teaser
-          marker="+"
-          title="No rack free?"
-          detail="Tap any exercise later to swap in an equivalent movement."
-        />
+        <Card style={{ gap: space[3] }}>
+          <Eyebrow>Movements</Eyebrow>
+          <Text style={t.text('bodyM')}>Add a movement to this workout or save it into this program day.</Text>
+          <Button
+            title="Add movement"
+            onPress={() => router.push({ pathname: '/library', params: { mode: 'add', programDayId: day.dayId, returnTo: 'workout' } })}
+          />
+        </Card>
       </ScreenScroll>
 
       {rest !== null && (

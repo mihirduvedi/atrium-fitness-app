@@ -2,7 +2,8 @@
  * On-device SQLite schema — mirrors supabase/migrations/0001_init.sql
  * (minus RLS, which has no meaning locally) plus the local-only
  * mutation_queue. SQLite is the source of truth on device; the server is a
- * replica (brief Part E).
+ * replica (brief Part E). Progress photos stay local-only until private media
+ * storage/backups are designed separately.
  *
  * Representation choices:
  * - uuids and timestamps are TEXT (ISO-8601, UTC) — lexicographic order ==
@@ -13,7 +14,7 @@
  * This module is pure SQL + types so vitest can apply it to node:sqlite.
  */
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 8;
 
 export const SCHEMA_SQL = `
 create table if not exists profiles (
@@ -35,6 +36,9 @@ create table if not exists exercises (
   pattern text not null,
   equipment text not null,
   level integer not null default 1,
+  description text,
+  default_sets integer,
+  default_reps integer,
   updated_at text not null,
   deleted_at text
 );
@@ -146,6 +150,66 @@ create table if not exists health_samples (
   unique (user_id, source, external_id)
 );
 
+-- Local-only private media records. Image files live in the app document
+-- directory and are intentionally not part of the generic sync table list.
+create table if not exists progress_photos (
+  id text primary key,
+  user_id text not null,
+  taken_at text not null,
+  image_uri text not null,
+  pose text not null default 'front',
+  body_weight real,
+  note text,
+  tags text not null default '[]',
+  created_at text not null,
+  updated_at text not null,
+  deleted_at text
+);
+
+-- Local-only in-progress workout UI state. Completed sets still live in the
+-- synced sets table; this preserves draft inputs, queue order, active cursor,
+-- and rest timer state across app restarts.
+create table if not exists workout_drafts (
+  workout_id text primary key references workouts (id),
+  user_id text not null,
+  program_day_id text,
+  day_json text not null,
+  plan_json text not null,
+  set_ui_json text not null default '{}',
+  active_index integer not null default 0,
+  rest_remaining_s integer,
+  rest_saved_at text,
+  updated_at text not null,
+  deleted_at text
+);
+
+-- Local-only template metadata for the program library. The synced
+-- program_days row remains the source for name and active/inactive state.
+create table if not exists program_day_settings (
+  program_day_id text primary key references program_days (id),
+  user_id text not null,
+  active integer not null default 1,
+  category text not null default 'other',
+  notes text,
+  repeat_every integer not null default 1,
+  repeat_unit text not null default 'week',
+  weekdays text not null default '[]',
+  updated_at text not null,
+  deleted_at text
+);
+
+-- Local-only metadata for the workout plan library. The synced programs row
+-- remains the source for plan identity and active/inactive status.
+create table if not exists workout_plan_settings (
+  program_id text primary key references programs (id),
+  user_id text not null,
+  name text,
+  goal text not null default 'general',
+  notes text,
+  updated_at text not null,
+  deleted_at text
+);
+
 create table if not exists sync_cursors (
   user_id text not null,
   device_id text not null,
@@ -179,6 +243,10 @@ create index if not exists workouts_user_idx on workouts (user_id, started_at);
 create index if not exists program_days_program_idx on program_days (program_id);
 create index if not exists program_slots_day_idx on program_slots (program_day_id);
 create index if not exists health_samples_user_type_date_idx on health_samples (user_id, type, date);
+create index if not exists progress_photos_user_taken_idx on progress_photos (user_id, taken_at);
+create index if not exists workout_drafts_user_idx on workout_drafts (user_id, updated_at);
+create index if not exists program_day_settings_user_idx on program_day_settings (user_id, category);
+create index if not exists workout_plan_settings_user_idx on workout_plan_settings (user_id, goal);
 create index if not exists mutation_queue_unpushed_idx on mutation_queue (seq) where pushed_at is null;
 `;
 
@@ -214,11 +282,24 @@ export interface SqlDb {
 
 export type SqlParam = string | number | null;
 
+async function ensureColumn(db: SqlDb, table: string, column: string, ddl: string): Promise<void> {
+  const cols = await db.getAllAsync<{ name: string }>(`pragma table_info(${table})`);
+  if (!cols.some((c) => c.name === column)) {
+    await db.execAsync(`alter table ${table} add column ${ddl}`);
+  }
+}
+
 /** Apply the schema (idempotent) and stamp user_version. */
 export async function migrate(db: SqlDb): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('pragma user_version');
   const current = row?.user_version ?? 0;
-  if (current >= SCHEMA_VERSION) return;
   await db.execAsync(SCHEMA_SQL);
-  await db.execAsync(`pragma user_version = ${SCHEMA_VERSION}`);
+  await ensureColumn(db, 'progress_photos', 'tags', "tags text not null default '[]'");
+  await ensureColumn(db, 'exercises', 'description', 'description text');
+  await ensureColumn(db, 'exercises', 'default_sets', 'default_sets integer');
+  await ensureColumn(db, 'exercises', 'default_reps', 'default_reps integer');
+  await ensureColumn(db, 'program_day_settings', 'active', 'active integer not null default 1');
+  if (current < SCHEMA_VERSION) {
+    await db.execAsync(`pragma user_version = ${SCHEMA_VERSION}`);
+  }
 }

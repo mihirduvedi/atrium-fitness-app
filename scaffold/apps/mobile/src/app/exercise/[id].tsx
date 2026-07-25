@@ -1,10 +1,11 @@
-import { exerciseCatalog, type CatalogExercise, type Pattern } from '@atrium/engine';
+import { type Pattern } from '@atrium/engine';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 import { useApp } from '@/AppContext';
 import { Card, Eyebrow, ScreenScroll } from '@/components/ui';
+import { listExercises, type ExerciseLibraryEntry } from '@/db/queries';
 import { borderWidth, radius, space, useTheme } from '@/theme';
 
 interface HistoryRow {
@@ -70,7 +71,8 @@ function compact(n: number) {
   return n >= 1000 ? `${Math.round(n / 100) / 10}k` : String(Math.round(n));
 }
 
-function exerciseType(exercise: CatalogExercise) {
+function exerciseType(exercise: ExerciseLibraryEntry) {
+  if (exercise.ownerUserId) return 'Custom';
   return COMPOUND.has(exercise.pattern) ? 'Compound' : 'Accessory';
 }
 
@@ -209,7 +211,7 @@ export default function ExerciseDetailScreen() {
   const { db, userId } = useApp();
   const params = useLocalSearchParams<{ id?: string }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
-  const exercise = id ? exerciseCatalog[id] : undefined;
+  const [exercise, setExercise] = useState<ExerciseLibraryEntry | null>(null);
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [best, setBest] = useState<BestSet | null>(null);
   const [prs, setPrs] = useState<PrRow[]>([]);
@@ -219,6 +221,7 @@ export default function ExerciseDetailScreen() {
       let live = true;
       if (!id) return () => {};
       (async () => {
+        const exerciseRows = await listExercises(db, userId);
         const rows = await db.getAllAsync<HistoryRow>(
           `select w.id as workout_id, w.started_at,
                   coalesce(sum(coalesce(s.weight, 0) * coalesce(s.reps, 0)), 0) as volume,
@@ -257,6 +260,7 @@ export default function ExerciseDetailScreen() {
           id,
         );
         if (live) {
+          setExercise(exerciseRows.find((row) => row.id === id) ?? null);
           setHistory(rows);
           setBest(bestSet);
           setPrs(prRows);

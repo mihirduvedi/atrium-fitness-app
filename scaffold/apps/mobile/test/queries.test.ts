@@ -2,19 +2,46 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { detectPRs } from '@atrium/engine';
 import { migrate, type SqlDb } from '../src/db/schema';
 import {
+  addMovementToProgramDay,
+  cloneProgramIntoWorkoutPlan,
+  createCustomExercise,
+  createProgramDayTemplate,
   createProgramFromOnboarding,
+  createWorkoutPlanTemplate,
+  deleteCustomExercise,
+  discardEmptyInProgressWorkouts,
+  discardWorkout,
   finishWorkout,
   getActiveProgram,
   getHistory,
+  getInProgressWorkout,
+  getInProgressWorkoutOverview,
   getNextProgramDay,
+  getProgramOverview,
   getPreviousSession,
+  getWorkoutDraft,
   getWorkoutSummary,
+  listExercises,
+  listProgramLibrary,
+  listWorkoutPlanLibrary,
   logSet,
   planSession,
+  previewProgramDay,
+  reorderProgramSlots,
+  removeMovementFromProgramDay,
+  removeProgramFromWorkoutPlan,
+  renameProgramDay,
+  renameWorkout,
+  saveProgramDaySettings,
+  saveWorkoutPlanSettings,
   savePersonalRecord,
+  setProgramDayActive,
+  setWorkoutPlanActive,
+  saveWorkoutDraft,
   seedDemoProgram,
   seedExerciseCatalog,
   startWorkout,
+  unlogSet,
 } from '../src/db/queries';
 import { openNodeDb } from './helpers/nodeDb';
 
@@ -47,6 +74,7 @@ async function performSession(userId: string): Promise<string> {
         setIndex: s.setIndex,
         weight: s.weight ?? 100,
         reps: s.targetSeconds !== undefined ? s.targetSeconds : s.targetReps[1],
+        isWarmup: s.isWarmup,
       }, id);
     }
   }
@@ -107,6 +135,9 @@ describe('Stage 5 data layer: Today plans from real engine + SQLite state', () =
     expect(plan.prescriptions).toHaveLength(5);
     const bench = plan.prescriptions[0]!;
     expect(bench.exerciseId).toBe('bb_bench');
+    expect(bench.sets.filter((s) => s.isWarmup)).toEqual([
+      { setIndex: -1, weight: 45, targetReps: [10, 10], kind: 'warmup', isWarmup: true },
+    ]);
     expect(bench.sets.filter((s) => s.kind === 'top')).toHaveLength(1);
     expect(bench.sets.filter((s) => s.kind === 'backoff')).toHaveLength(3);
     expect(bench.rest_s).toBe(180);
@@ -140,11 +171,12 @@ describe('Stage 5 data layer: Today plans from real engine + SQLite state', () =
     const day = (await getNextProgramDay(db, program.id))!;
     const plan = await planSession(db, USER, day, id);
     const row = plan.prescriptions.find((p) => p.exerciseId === 'bb_row')!;
-    expect(row.sets[0]!.weight).toBe(105); // double progression: all sets at top → +5
+    expect(row.sets.filter((s) => s.isWarmup)).toHaveLength(2);
+    expect(row.sets.find((s) => !s.isWarmup)!.weight).toBe(105); // double progression: all sets at top → +5
 
     // state was persisted: re-planning is idempotent
     const again = await planSession(db, USER, day, id);
-    expect(again.prescriptions.find((p) => p.exerciseId === 'bb_row')!.sets[0]!.weight).toBe(105);
+    expect(again.prescriptions.find((p) => p.exerciseId === 'bb_row')!.sets.find((s) => !s.isWarmup)!.weight).toBe(105);
   });
 
   it('readiness yellow trims a set from compounds at plan time', async () => {
@@ -153,12 +185,425 @@ describe('Stage 5 data layer: Today plans from real engine + SQLite state', () =
     const day = (await getNextProgramDay(db, program.id))!;
     const plan = await planSession(db, USER, day, id, 'yellow');
     const bench = plan.prescriptions[0]!;
-    expect(bench.sets).toHaveLength(3); // 1 top + 2 backoffs
+    expect(bench.sets.filter((s) => !s.isWarmup)).toHaveLength(3); // 1 top + 2 backoffs
+    expect(bench.sets.filter((s) => s.isWarmup)).toHaveLength(1); // empty-bar primer while load is unknown
     expect(plan.readinessApplied).toBe('yellow');
+  });
+
+  it('builds a program overview with next day and completed day counts', async () => {
+    await seedDemoProgram(db, USER, id);
+    let overview = (await getProgramOverview(db, USER))!;
+    expect(overview.week).toBe(1);
+    expect(overview.completedThisWeek).toBe(0);
+    expect(overview.days).toHaveLength(4);
+    expect(overview.days[0]).toMatchObject({
+      dayIndex: 0,
+      name: 'Upper — Strength',
+      completedWorkouts: 0,
+    });
+    expect(overview.days[0]!.slots.length).toBeGreaterThan(0);
+    expect(overview.nextDay).toMatchObject({ dayIndex: 0 });
+
+    await performSession(USER);
+    overview = (await getProgramOverview(db, USER))!;
+    expect(overview.totalCompletedWorkouts).toBe(1);
+    expect(overview.completedThisWeek).toBe(1);
+    expect(overview.nextDay).toMatchObject({ dayIndex: 1 });
+    expect(overview.days[0]).toMatchObject({ completedWorkouts: 1 });
+  });
+
+  it('previews readiness changes without persisting slot state', async () => {
+    await seedDemoProgram(db, USER, id);
+    const program = (await getActiveProgram(db, USER))!;
+    const day = (await getNextProgramDay(db, program.id))!;
+    const before = await db.getFirstAsync<{ state: string }>(
+      'select state from program_slots where program_day_id = ? order by slot_index limit 1',
+      day.dayId,
+    );
+    const plan = await previewProgramDay(db, USER, day, 'yellow');
+    const after = await db.getFirstAsync<{ state: string }>(
+      'select state from program_slots where program_day_id = ? order by slot_index limit 1',
+      day.dayId,
+    );
+    expect(plan.readinessApplied).toBe('yellow');
+    expect(plan.prescriptions[0]!.sets.filter((s) => !s.isWarmup).length).toBeLessThan(4);
+    expect(after!.state).toBe(before!.state);
+  });
+
+  it('creates, deletes, adds, and reorders custom movements in the active program', async () => {
+    await seedDemoProgram(db, USER, id);
+    const custom = await createCustomExercise(db, USER, {
+      name: 'Cable Y Raise',
+      pattern: 'side_delt',
+      equipment: 'cable',
+      description: 'Slow shoulder raise',
+      defaultSets: 4,
+      defaultReps: 12,
+    }, id);
+    let exercises = await listExercises(db, USER);
+    expect(exercises.find((exercise) => exercise.id === custom.id)).toMatchObject({
+      name: 'Cable Y Raise',
+      defaultSets: 4,
+      defaultReps: 12,
+    });
+
+    const program = (await getActiveProgram(db, USER))!;
+    const day = (await getNextProgramDay(db, program.id))!;
+    const added = await addMovementToProgramDay(db, day.dayId, custom.id, { sets: 2, reps: 15 }, id);
+    expect(added).toMatchObject({ exerciseId: custom.id, exerciseName: 'Cable Y Raise' });
+
+    let overview = (await getProgramOverview(db, USER))!;
+    const nextDay = overview.days.find((item) => item.dayId === day.dayId)!;
+    expect(nextDay.slots[nextDay.slots.length - 1]).toMatchObject({ exerciseId: custom.id, slotIndex: nextDay.slots.length - 1 });
+
+    const ordered = [added.slotId, ...nextDay.slots.filter((slot) => slot.slotId !== added.slotId).map((slot) => slot.slotId)];
+    await reorderProgramSlots(db, day.dayId, ordered, id);
+    overview = (await getProgramOverview(db, USER))!;
+    expect(overview.days.find((item) => item.dayId === day.dayId)!.slots[0]).toMatchObject({ slotId: added.slotId, slotIndex: 0 });
+
+    expect(await deleteCustomExercise(db, USER, custom.id, id)).toBe(true);
+    exercises = await listExercises(db, USER);
+    expect(exercises.find((exercise) => exercise.id === custom.id)).toBeUndefined();
+  });
+
+  it('lists, renames, schedules, toggles, and edits program templates', async () => {
+    await seedDemoProgram(db, USER, id);
+    let library = await listProgramLibrary(db, USER);
+    expect(library).toHaveLength(4);
+    const first = library[0]!;
+    expect(first.active).toBe(true);
+    expect(first.movements.length).toBeGreaterThan(0);
+
+    await renameProgramDay(db, first.programDayId, 'Lower Body - Volume', id);
+    await saveProgramDaySettings(db, {
+      userId: USER,
+      programDayId: first.programDayId,
+      category: 'lower',
+      notes: 'Keep one rep in reserve.',
+      repeatEvery: 2,
+      repeatUnit: 'week',
+      weekdays: [1, 3],
+    });
+
+    library = await listProgramLibrary(db, USER);
+    const renamed = library.find((item) => item.programDayId === first.programDayId)!;
+    expect(renamed).toMatchObject({
+      name: 'Lower Body - Volume',
+      category: 'lower',
+      notes: 'Keep one rep in reserve.',
+      repeatEvery: 2,
+      repeatUnit: 'week',
+      weekdays: [1, 3],
+    });
+
+    await setProgramDayActive(db, USER, first.programDayId, false);
+    expect((await getNextProgramDay(db, renamed.workoutPlanId))!.dayId).not.toBe(first.programDayId);
+    expect((await getProgramOverview(db, USER))!.days.some((day) => day.dayId === first.programDayId)).toBe(false);
+
+    const slotToRemove = renamed.movements[0]!;
+    expect(await removeMovementFromProgramDay(db, slotToRemove.slotId, id)).toBe(true);
+    library = await listProgramLibrary(db, USER);
+    expect(library.find((item) => item.programDayId === first.programDayId)!.movements).toHaveLength(renamed.movements.length - 1);
+
+    const customProgramId = await createProgramDayTemplate(db, USER, {
+      name: 'Arms - Pump',
+      category: 'arms',
+      repeatEvery: 1,
+      repeatUnit: 'week',
+      weekdays: [5],
+    }, id);
+    library = await listProgramLibrary(db, USER);
+    expect(library.find((item) => item.programDayId === customProgramId)).toMatchObject({
+      name: 'Arms - Pump',
+      active: false,
+      category: 'arms',
+      weekdays: [5],
+    });
+
+    await addMovementToProgramDay(db, customProgramId, 'db_curl', { sets: 3, reps: 12 }, id);
+    await setProgramDayActive(db, USER, customProgramId, true);
+    expect((await getProgramOverview(db, USER))!.days.some((day) => day.dayId === customProgramId)).toBe(true);
+  });
+
+  it('lists, renames, toggles, creates, and edits workout plan templates', async () => {
+    await seedDemoProgram(db, USER, id);
+    let plans = await listWorkoutPlanLibrary(db, USER);
+    expect(plans).toHaveLength(1);
+    expect(plans[0]).toMatchObject({ active: true, goal: 'general' });
+    expect(plans[0]!.programs).toHaveLength(4);
+
+    await saveWorkoutPlanSettings(db, {
+      userId: USER,
+      planId: plans[0]!.planId,
+      name: 'Strength Training',
+      goal: 'strength',
+      notes: 'Main goal block.',
+    });
+    plans = await listWorkoutPlanLibrary(db, USER);
+    expect(plans[0]).toMatchObject({
+      name: 'Strength Training',
+      goal: 'strength',
+      notes: 'Main goal block.',
+    });
+
+    const newPlanId = await createWorkoutPlanTemplate(db, USER, {
+      name: 'Weight Loss Plan',
+      goal: 'weight_loss',
+      active: false,
+    }, id);
+    const sourceProgram = plans[0]!.programs[0]!;
+    const copiedProgramId = await cloneProgramIntoWorkoutPlan(db, USER, sourceProgram.programDayId, newPlanId, id);
+    expect(copiedProgramId).not.toBeNull();
+
+    await setWorkoutPlanActive(db, USER, newPlanId, true, id);
+    plans = await listWorkoutPlanLibrary(db, USER);
+    const newPlan = plans.find((plan) => plan.planId === newPlanId)!;
+    expect(newPlan).toMatchObject({ name: 'Weight Loss Plan', goal: 'weight_loss', active: true });
+    expect(newPlan.programs).toHaveLength(1);
+    expect(newPlan.programs[0]).toMatchObject({ name: sourceProgram.name });
+
+    expect(await removeProgramFromWorkoutPlan(db, USER, copiedProgramId!, id)).toBe(true);
+    plans = await listWorkoutPlanLibrary(db, USER);
+    expect(plans.find((plan) => plan.planId === newPlanId)!.programs).toHaveLength(0);
   });
 });
 
 describe('Stage 5 data layer: Active Workout', () => {
+  it('persists draft queue order, active cursor, typed inputs, and prevents duplicate active workouts', async () => {
+    await seedDemoProgram(db, USER, id);
+    const program = (await getActiveProgram(db, USER))!;
+    const day = (await getNextProgramDay(db, program.id))!;
+    const plan = await planSession(db, USER, day, id);
+    const workoutId = await startWorkout(db, USER, day.dayId, id);
+    const reordered = { ...plan, prescriptions: [plan.prescriptions[1]!, plan.prescriptions[0]!, ...plan.prescriptions.slice(2)] };
+    const first = reordered.prescriptions[0]!;
+    const key = `${first.slotId}:${first.sets[0]!.setIndex}`;
+
+    await saveWorkoutDraft(db, {
+      workoutId,
+      userId: USER,
+      programDayId: day.dayId,
+      day,
+      plan: reordered,
+      setUi: {
+        [key]: { weight: '135', reps: '7', done: false },
+      },
+      activeIndex: 1,
+      restRemainingS: 90,
+      restSavedAt: new Date().toISOString(),
+    });
+
+    expect(await startWorkout(db, USER, day.dayId, id)).toBe(workoutId);
+    const active = await getInProgressWorkoutOverview(db, USER);
+    expect(active).toMatchObject({ workoutId, programDayId: day.dayId, completedSets: 0 });
+
+    const draft = (await getWorkoutDraft(db, workoutId))!;
+    expect(draft.plan.prescriptions.map((p) => p.slotId).slice(0, 2)).toEqual([
+      plan.prescriptions[1]!.slotId,
+      plan.prescriptions[0]!.slotId,
+    ]);
+    expect(draft.activeIndex).toBe(1);
+    expect(draft.setUi[key]).toMatchObject({ weight: '135', reps: '7', done: false });
+    expect(draft.restRemainingS).toBeGreaterThan(80);
+    expect(draft.restRemainingS).toBeLessThanOrEqual(90);
+  });
+
+  it('persists custom workout names through active drafts and summaries', async () => {
+    await seedDemoProgram(db, USER, id);
+    const program = (await getActiveProgram(db, USER))!;
+    const day = (await getNextProgramDay(db, program.id))!;
+    const plan = await planSession(db, USER, day, id);
+    const workoutId = await startWorkout(db, USER, day.dayId, id);
+    await saveWorkoutDraft(db, {
+      workoutId,
+      userId: USER,
+      programDayId: day.dayId,
+      day,
+      plan,
+      setUi: {},
+      activeIndex: 0,
+      restRemainingS: null,
+    });
+
+    await renameWorkout(db, workoutId, 'Legs - Volume', id);
+
+    expect(await getInProgressWorkoutOverview(db, USER)).toMatchObject({ workoutId, customName: 'Legs - Volume' });
+    expect((await getWorkoutDraft(db, workoutId))!.customName).toBe('Legs - Volume');
+
+    await finishWorkout(db, workoutId, id);
+    expect((await getWorkoutSummary(db, workoutId))!.customName).toBe('Legs - Volume');
+  });
+
+  it('cleans stale empty active workouts while preserving a draft and logged progress', async () => {
+    await seedDemoProgram(db, USER, id);
+    const program = (await getActiveProgram(db, USER))!;
+    const day = (await getNextProgramDay(db, program.id))!;
+    const plan = await planSession(db, USER, day, id);
+    const keeper = await startWorkout(db, USER, day.dayId, id);
+    await saveWorkoutDraft(db, {
+      workoutId: keeper,
+      userId: USER,
+      programDayId: day.dayId,
+      day,
+      plan,
+      setUi: {},
+      activeIndex: 0,
+      restRemainingS: null,
+    });
+
+    const staleWithDraft = 'legacy-empty-draft';
+    const staleWithoutDraft = 'legacy-empty-no-draft';
+    const activeWithSet = 'legacy-with-set';
+    const ts = '2026-05-01T10:00:00.000Z';
+    for (const workoutId of [staleWithDraft, staleWithoutDraft, activeWithSet]) {
+      await db.runAsync(
+        `insert into workouts (id, user_id, program_day_id, started_at, ended_at, notes, readiness_at_start, updated_at, deleted_at)
+         values (?, ?, ?, ?, null, null, null, ?, null)`,
+        workoutId,
+        USER,
+        day.dayId,
+        ts,
+        ts,
+      );
+    }
+    await saveWorkoutDraft(db, {
+      workoutId: staleWithDraft,
+      userId: USER,
+      programDayId: day.dayId,
+      day,
+      plan,
+      setUi: {},
+      activeIndex: 0,
+      restRemainingS: null,
+    });
+    const first = plan.prescriptions[0]!;
+    const firstSet = first.sets[0]!;
+    await logSet(db, {
+      workoutId: activeWithSet,
+      exerciseId: first.exerciseId,
+      setIndex: firstSet.setIndex,
+      weight: 100,
+      reps: 5,
+      isWarmup: firstSet.isWarmup,
+    }, id);
+
+    expect(await discardEmptyInProgressWorkouts(db, USER, id, keeper)).toBe(2);
+
+    const rows = await db.getAllAsync<{ id: string; deleted_at: string | null }>(
+      `select id, deleted_at from workouts
+        where id in (?, ?, ?, ?)
+        order by id`,
+      keeper,
+      staleWithDraft,
+      staleWithoutDraft,
+      activeWithSet,
+    );
+    expect(Object.fromEntries(rows.map((row) => [row.id, row.deleted_at !== null]))).toEqual({
+      'legacy-empty-draft': true,
+      'legacy-empty-no-draft': true,
+      'legacy-with-set': false,
+      [keeper]: false,
+    });
+    expect(await getWorkoutDraft(db, staleWithDraft)).toBeNull();
+  });
+
+  it('hydrates completed draft sets from logged set rows', async () => {
+    await seedDemoProgram(db, USER, id);
+    const program = (await getActiveProgram(db, USER))!;
+    const day = (await getNextProgramDay(db, program.id))!;
+    const plan = await planSession(db, USER, day, id);
+    const workoutId = await startWorkout(db, USER, day.dayId, id);
+    const first = plan.prescriptions[0]!;
+    const firstSet = first.sets[0]!;
+    const key = `${first.slotId}:${firstSet.setIndex}`;
+
+    await saveWorkoutDraft(db, {
+      workoutId,
+      userId: USER,
+      programDayId: day.dayId,
+      day,
+      plan,
+      setUi: { [key]: { weight: '123', reps: '4', done: true } },
+      activeIndex: 0,
+      restRemainingS: null,
+    });
+    await logSet(db, {
+      workoutId,
+      exerciseId: first.exerciseId,
+      setIndex: firstSet.setIndex,
+      weight: 155,
+      reps: 6,
+      isWarmup: firstSet.isWarmup,
+    }, id);
+
+    let draft = (await getWorkoutDraft(db, workoutId))!;
+    expect(draft.setUi[key]).toMatchObject({ weight: '155', reps: '6', done: true });
+
+    await unlogSet(db, {
+      workoutId,
+      exerciseId: first.exerciseId,
+      setIndex: firstSet.setIndex,
+      isWarmup: firstSet.isWarmup,
+    }, id);
+    draft = (await getWorkoutDraft(db, workoutId))!;
+    expect(draft.setUi[key]).toMatchObject({ weight: '123', reps: '4', done: false });
+  });
+
+  it('clears active drafts when finishing or discarding', async () => {
+    await seedDemoProgram(db, USER, id);
+    const program = (await getActiveProgram(db, USER))!;
+    const day = (await getNextProgramDay(db, program.id))!;
+    const plan = await planSession(db, USER, day, id);
+    const workoutId = await startWorkout(db, USER, day.dayId, id);
+    await saveWorkoutDraft(db, {
+      workoutId,
+      userId: USER,
+      programDayId: day.dayId,
+      day,
+      plan,
+      setUi: {},
+      activeIndex: 0,
+      restRemainingS: null,
+    });
+
+    await finishWorkout(db, workoutId, id);
+    expect(await getWorkoutDraft(db, workoutId)).toBeNull();
+    expect(await getInProgressWorkout(db, USER)).toBeNull();
+
+    const nextDay = (await getNextProgramDay(db, program.id))!;
+    const nextPlan = await planSession(db, USER, nextDay, id);
+    const discardedWorkoutId = await startWorkout(db, USER, nextDay.dayId, id);
+    const first = nextPlan.prescriptions[0]!;
+    const firstSet = first.sets[0]!;
+    await saveWorkoutDraft(db, {
+      workoutId: discardedWorkoutId,
+      userId: USER,
+      programDayId: nextDay.dayId,
+      day: nextDay,
+      plan: nextPlan,
+      setUi: {},
+      activeIndex: 0,
+      restRemainingS: null,
+    });
+    await logSet(db, {
+      workoutId: discardedWorkoutId,
+      exerciseId: first.exerciseId,
+      setIndex: firstSet.setIndex,
+      weight: 100,
+      reps: 5,
+      isWarmup: firstSet.isWarmup,
+    }, id);
+
+    expect(await discardWorkout(db, discardedWorkoutId, id)).toBe(true);
+    expect(await getWorkoutDraft(db, discardedWorkoutId)).toBeNull();
+    expect(await getInProgressWorkout(db, USER)).toBeNull();
+    const liveSets = await db.getFirstAsync<{ n: number }>(
+      'select count(*) as n from sets where workout_id = ? and deleted_at is null',
+      discardedWorkoutId,
+    );
+    expect(liveSets!.n).toBe(0);
+  });
+
   it('logs each set durably and exposes previous-session ghost values', async () => {
     await seedDemoProgram(db, USER, id);
     const w1 = await performSession(USER);
@@ -180,6 +625,44 @@ describe('Stage 5 data layer: Active Workout', () => {
     const rows = await db.getFirstAsync<{ n: number }>('select count(*) as n from sets');
     expect(rows!.n).toBeGreaterThan(0);
   });
+
+  it('unchecks a set by tombstoning the logged row', async () => {
+    await seedDemoProgram(db, USER, id);
+    const program = (await getActiveProgram(db, USER))!;
+    const day = (await getNextProgramDay(db, program.id))!;
+    const plan = await planSession(db, USER, day, id);
+    const workoutId = await startWorkout(db, USER, day.dayId, id);
+    const first = plan.prescriptions[0]!;
+    const firstSet = first.sets[0]!;
+
+    await logSet(db, {
+      workoutId,
+      exerciseId: first.exerciseId,
+      setIndex: firstSet.setIndex,
+      weight: firstSet.weight ?? 45,
+      reps: firstSet.targetReps[1],
+      isWarmup: firstSet.isWarmup,
+    }, id);
+
+    const removed = await unlogSet(db, {
+      workoutId,
+      exerciseId: first.exerciseId,
+      setIndex: firstSet.setIndex,
+      isWarmup: firstSet.isWarmup,
+    }, id);
+
+    expect(removed).toBe(true);
+    const liveRows = await db.getFirstAsync<{ n: number }>(
+      'select count(*) as n from sets where workout_id = ? and deleted_at is null',
+      workoutId,
+    );
+    expect(liveRows!.n).toBe(0);
+    const tombstones = await db.getFirstAsync<{ n: number }>(
+      'select count(*) as n from sets where workout_id = ? and deleted_at is not null',
+      workoutId,
+    );
+    expect(tombstones!.n).toBe(1);
+  });
 });
 
 describe('Stage 5 data layer: Summary', () => {
@@ -200,6 +683,7 @@ describe('Stage 5 data layer: Summary', () => {
           setIndex: s.setIndex,
           weight: (s.weight ?? 100) + 5, // beat last week
           reps: s.targetSeconds !== undefined ? s.targetSeconds : s.targetReps[1],
+          isWarmup: s.isWarmup,
         }, id);
       }
     }

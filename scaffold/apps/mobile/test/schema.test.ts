@@ -13,6 +13,10 @@ describe('on-device SQLite schema', () => {
     );
     const names = tables.map((t) => t.name);
     for (const t of SYNCED_TABLES) expect(names).toContain(t);
+    expect(names).toContain('progress_photos');
+    expect(names).toContain('workout_drafts');
+    expect(names).toContain('program_day_settings');
+    expect(names).toContain('workout_plan_settings');
     expect(names).toContain('mutation_queue');
     expect(names).toContain('sync_cursors');
     db.close();
@@ -36,16 +40,133 @@ describe('on-device SQLite schema', () => {
       'id', 'program_day_id', 'slot_index', 'pattern', 'exercise_id',
       'scheme', 'rule', 'rest_s', 'state', 'updated_at', 'deleted_at',
     ]);
+    expect(await cols('exercises')).toEqual([
+      'id', 'owner_user_id', 'name', 'pattern', 'equipment', 'level',
+      'description', 'default_sets', 'default_reps', 'updated_at', 'deleted_at',
+    ]);
     expect(await cols('health_samples')).toEqual([
       'id', 'user_id', 'source', 'type', 'date', 'value', 'external_id',
       'updated_at', 'deleted_at',
     ]);
+    expect(await cols('progress_photos')).toEqual([
+      'id', 'user_id', 'taken_at', 'image_uri', 'pose', 'body_weight',
+      'note', 'tags', 'created_at', 'updated_at', 'deleted_at',
+    ]);
+    expect(await cols('program_day_settings')).toEqual([
+      'program_day_id', 'user_id', 'active', 'category', 'notes',
+      'repeat_every', 'repeat_unit', 'weekdays', 'updated_at', 'deleted_at',
+    ]);
+    expect(await cols('workout_plan_settings')).toEqual([
+      'program_id', 'user_id', 'name', 'goal', 'notes', 'updated_at', 'deleted_at',
+    ]);
+    expect(SYNCED_TABLES).not.toContain('progress_photos' as never);
+    expect(SYNCED_TABLES).not.toContain('program_day_settings' as never);
+    expect(SYNCED_TABLES).not.toContain('workout_plan_settings' as never);
     // every synced table carries updated_at + deleted_at (tombstones for sync)
     for (const t of SYNCED_TABLES) {
       const c = await cols(t);
       expect(c, t).toContain('updated_at');
       expect(c, t).toContain('deleted_at');
     }
+    db.close();
+  });
+
+  it('migrates v3 progress photo rows to include tags', async () => {
+    const db = openNodeDb();
+    await db.execAsync(`
+      create table progress_photos (
+        id text primary key,
+        user_id text not null,
+        taken_at text not null,
+        image_uri text not null,
+        pose text not null default 'front',
+        body_weight real,
+        note text,
+        created_at text not null,
+        updated_at text not null,
+        deleted_at text
+      );
+      insert into progress_photos (
+        id, user_id, taken_at, image_uri, pose, body_weight, note, created_at, updated_at, deleted_at
+      ) values (
+        'p1', 'u1', '2026-06-01T12:00:00.000Z', 'file:///p1.jpg', 'front', 180, 'old',
+        '2026-06-01T12:00:00.000Z', '2026-06-01T12:00:00.000Z', null
+      );
+      pragma user_version = 3;
+    `);
+
+    await migrate(db);
+    const cols = (await db.getAllAsync<{ name: string }>('pragma table_info(progress_photos)')).map((c) => c.name);
+    const row = await db.getFirstAsync<{ tags: string }>('select tags from progress_photos where id = ?', 'p1');
+    expect(cols).toContain('tags');
+    expect(row?.tags).toBe('[]');
+    db.close();
+  });
+
+  it('migrates older exercise rows to include custom movement metadata', async () => {
+    const db = openNodeDb();
+    await db.execAsync(`
+      create table exercises (
+        id text primary key,
+        owner_user_id text,
+        name text not null,
+        pattern text not null,
+        equipment text not null,
+        level integer not null default 1,
+        updated_at text not null,
+        deleted_at text
+      );
+      insert into exercises (id, owner_user_id, name, pattern, equipment, level, updated_at, deleted_at)
+      values ('x1', 'u1', 'Custom Press', 'hpress', 'dumbbell', 1, '2026-06-01T12:00:00.000Z', null);
+      pragma user_version = 4;
+    `);
+
+    await migrate(db);
+    const cols = (await db.getAllAsync<{ name: string }>('pragma table_info(exercises)')).map((c) => c.name);
+    const row = await db.getFirstAsync<{ default_sets: number | null; default_reps: number | null }>(
+      'select default_sets, default_reps from exercises where id = ?',
+      'x1',
+    );
+    expect(cols).toContain('description');
+    expect(cols).toContain('default_sets');
+    expect(cols).toContain('default_reps');
+    expect(row).toMatchObject({ default_sets: null, default_reps: null });
+    db.close();
+  });
+
+  it('migrates older databases to include program day settings', async () => {
+    const db = openNodeDb();
+    await db.execAsync('pragma user_version = 6');
+
+    await migrate(db);
+    const cols = (await db.getAllAsync<{ name: string }>('pragma table_info(program_day_settings)')).map((c) => c.name);
+    expect(cols).toContain('active');
+    expect(cols).toContain('weekdays');
+    db.close();
+  });
+
+  it('repairs current-version databases that are missing newer local columns', async () => {
+    const db = openNodeDb();
+    await db.execAsync(`
+      create table program_day_settings (
+        program_day_id text primary key,
+        user_id text not null,
+        category text not null default 'other',
+        notes text,
+        repeat_every integer not null default 1,
+        repeat_unit text not null default 'week',
+        weekdays text not null default '[]',
+        updated_at text not null,
+        deleted_at text
+      );
+      pragma user_version = 8;
+    `);
+
+    await migrate(db);
+    const cols = (await db.getAllAsync<{ name: string }>('pragma table_info(program_day_settings)')).map((c) => c.name);
+    expect(cols).toContain('active');
+    const tables = (await db.getAllAsync<{ name: string }>("select name from sqlite_master where type = 'table'")).map((t) => t.name);
+    expect(tables).toContain('workout_plan_settings');
     db.close();
   });
 

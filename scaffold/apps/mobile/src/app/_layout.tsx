@@ -6,13 +6,14 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AppProvider } from '@/AppContext';
 import { AtriumFloatingNav } from '@/components/AtriumTabBar';
-import { useTheme } from '@/theme';
+import { ThemePreferenceProvider, useTheme } from '@/theme';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
-export default function RootLayout() {
+function RootStack() {
   const t = useTheme();
   const [fontsLoaded] = useFonts({
     SourceSerif4_500Medium,
@@ -42,12 +43,27 @@ export default function RootLayout() {
           <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="library" />
+          <Stack.Screen name="program" />
+          <Stack.Screen name="program-library" />
+          <Stack.Screen name="workout-plan-library" />
+          <Stack.Screen name="photos" />
           <Stack.Screen name="exercise/[id]" />
+          <Stack.Screen name="review" />
           <Stack.Screen name="workout" options={{ gestureEnabled: false }} />
           <Stack.Screen name="summary" options={{ gestureEnabled: false }} />
         </Stack>
         <AtriumFloatingNav />
       </View>
     </AppProvider>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemePreferenceProvider>
+        <RootStack />
+      </ThemePreferenceProvider>
+    </GestureHandlerRootView>
   );
 }

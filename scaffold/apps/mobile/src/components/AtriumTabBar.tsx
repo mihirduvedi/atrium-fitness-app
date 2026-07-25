@@ -3,13 +3,13 @@ import { router, usePathname } from 'expo-router';
 import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
-import { borderWidth, useTheme } from '@/theme';
+import { borderWidth, layout, useTheme } from '@/theme';
 
 const TABS = [
   { name: 'today', label: 'Today', href: '/(tabs)/today' },
   { name: 'progress', label: 'Progress', href: '/(tabs)/progress' },
   { name: 'coach', label: 'Coach', href: '/(tabs)/coach' },
-  { name: 'profile', label: 'Profile', href: '/(tabs)/profile' },
+  { name: 'libraries', label: 'Library', href: '/(tabs)/libraries' },
 ] as const;
 
 function Glyph({ name, color }: { name: string; color: string }) {
@@ -43,6 +43,16 @@ function Glyph({ name, color }: { name: string; color: string }) {
       </Svg>
     );
   }
+  if (name === 'libraries') {
+    const libraryStroke = { ...stroke, strokeWidth: 1.65 };
+    return (
+      <Svg width={22} height={22} viewBox="0 0 22 22">
+        <Path d="M4.4 5.4h3.9c1.25 0 2.15.45 2.7 1.25v10.45c-.6-.65-1.5-1-2.7-1H4.4Z" fill="none" {...libraryStroke} />
+        <Path d="M17.6 5.4h-3.9c-1.25 0-2.15.45-2.7 1.25v10.45c.6-.65 1.5-1 2.7-1h3.9Z" fill="none" {...libraryStroke} />
+        <Path d="M11 6.7v10.4" fill="none" {...libraryStroke} />
+      </Svg>
+    );
+  }
   return (
     <Svg width={22} height={22} viewBox="0 0 22 22">
       <Circle cx={11} cy={6.5} r={3.2} fill="none" {...stroke} />
@@ -52,15 +62,56 @@ function Glyph({ name, color }: { name: string; color: string }) {
 }
 
 function isActive(pathname: string, name: string) {
+  if (name === 'libraries') {
+    return pathname.includes('libraries') || pathname.includes('program-library') || pathname.includes('workout-plan-library') || pathname.includes('library');
+  }
   return pathname === `/${name}` || pathname.endsWith(`/${name}`);
+}
+
+export function ProfileShortcut() {
+  const t = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Open profile"
+      onPress={() => router.push('/(tabs)/profile')}
+      style={({ pressed }) => ({
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        backgroundColor: t.colors.bgSurface,
+        borderWidth: borderWidth.hairline,
+        borderColor: t.colors.borderHairline,
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity: pressed ? 0.62 : 1,
+      })}
+    >
+      <Glyph name="profile" color={t.colors.textMuted} />
+    </Pressable>
+  );
 }
 
 export function AtriumFloatingNav() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
-  const glass = t.mode === 'night' ? 'rgba(34, 33, 31, 0.58)' : 'rgba(255, 255, 255, 0.58)';
-  const pressedGlass = t.mode === 'night' ? 'rgba(44, 43, 40, 0.92)' : 'rgba(242, 241, 237, 0.92)';
+  const glass = t.mode === 'night' ? 'rgba(34, 33, 31, 0.70)' : 'rgba(255, 255, 255, 0.72)';
+  const glassHighlight = t.mode === 'night' ? 'rgba(235, 232, 224, 0.08)' : 'rgba(255, 255, 255, 0.34)';
+  const pressedGlass = t.mode === 'night' ? 'rgba(44, 43, 40, 0.92)' : 'rgba(255, 255, 255, 0.86)';
+  const inactiveColor = t.mode === 'night' ? t.colors.textMuted : t.colors.textMuted;
+  const labelHalo = t.mode === 'night' ? 'rgba(0, 0, 0, 0.55)' : 'rgba(255, 255, 255, 0.92)';
+  const labelShadow = {
+    textShadowColor: labelHalo,
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  } as const;
+  const navLabelStyle = (active: boolean) => [
+    t.text('labelCaps', active ? 'textPrimary' : 'textMuted'),
+    { fontSize: 8.5, letterSpacing: 0 },
+    labelShadow,
+  ];
+  const tabWidth = 58;
 
   if (pathname.includes('onboarding')) return null;
 
@@ -104,21 +155,33 @@ export function AtriumFloatingNav() {
           }}
         >
           <BlurView
-            intensity={t.mode === 'night' ? 34 : 46}
+            intensity={t.mode === 'night' ? 42 : 66}
             tint={t.mode === 'night' ? 'dark' : 'light'}
             style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
           />
           <View style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: glass }} />
+          <View
+            style={{
+              position: 'absolute',
+              left: 1,
+              right: 1,
+              top: 1,
+              height: 30,
+              borderTopLeftRadius: 34,
+              borderTopRightRadius: 34,
+              backgroundColor: glassHighlight,
+            }}
+          />
 
           {TABS.slice(0, 2).map((tab) => {
             const active = isActive(pathname, tab.name);
-            const color = active ? t.colors.textPrimary : t.colors.textFaint;
+            const color = active ? t.colors.textPrimary : inactiveColor;
             return (
               <Pressable
                 key={tab.name}
                 onPress={() => router.replace(tab.href)}
                 style={({ pressed }) => ({
-                  width: 58,
+                  width: tabWidth,
                   height: 52,
                   borderRadius: 26,
                   alignItems: 'center',
@@ -128,7 +191,7 @@ export function AtriumFloatingNav() {
                 })}
               >
                 <Glyph name={tab.name} color={color} />
-                <Text style={[t.text('labelCaps', active ? 'textPrimary' : 'textFaint'), { fontSize: 8.5 }]}>
+                <Text numberOfLines={1} style={navLabelStyle(active)}>
                   {tab.label}
                 </Text>
               </Pressable>
@@ -157,13 +220,13 @@ export function AtriumFloatingNav() {
 
           {TABS.slice(2).map((tab) => {
             const active = isActive(pathname, tab.name);
-            const color = active ? t.colors.textPrimary : t.colors.textFaint;
+            const color = active ? t.colors.textPrimary : inactiveColor;
             return (
               <Pressable
                 key={tab.name}
                 onPress={() => router.replace(tab.href)}
                 style={({ pressed }) => ({
-                  width: 58,
+                  width: tabWidth,
                   height: 52,
                   borderRadius: 26,
                   alignItems: 'center',
@@ -173,7 +236,7 @@ export function AtriumFloatingNav() {
                 })}
               >
                 <Glyph name={tab.name} color={color} />
-                <Text style={[t.text('labelCaps', active ? 'textPrimary' : 'textFaint'), { fontSize: 8.5 }]}>
+                <Text numberOfLines={1} style={navLabelStyle(active)}>
                   {tab.label}
                 </Text>
               </Pressable>

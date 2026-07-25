@@ -15,6 +15,22 @@ export interface AppServices {
   /** null when no backend is configured — the app is fully usable offline. */
   sync: SyncEngine | null;
   newId: () => string;
+  pendingWorkoutMovement: PendingWorkoutMovement | null;
+  queueWorkoutMovement: (movement: PendingWorkoutMovement) => void;
+  clearPendingWorkoutMovement: (id: string) => void;
+}
+
+export interface PendingWorkoutMovement {
+  id: string;
+  programDayId: string;
+  slotId: string;
+  exerciseId: string;
+  exerciseName: string;
+  pattern: string;
+  equipment: string;
+  sets: number;
+  reps: number;
+  scope: 'session' | 'program';
 }
 
 const Ctx = createContext<AppServices | null>(null);
@@ -54,7 +70,16 @@ async function bootstrap(): Promise<AppServices> {
   // fire-and-forget initial sync; failures back off and the queue is durable
   sync?.sync().catch(() => {});
 
-  return { db, userId, deviceId, sync, newId: randomUUID };
+  return {
+    db,
+    userId,
+    deviceId,
+    sync,
+    newId: randomUUID,
+    pendingWorkoutMovement: null,
+    queueWorkoutMovement: () => {},
+    clearPendingWorkoutMovement: () => {},
+  };
 }
 
 let bootstrapPromise: Promise<AppServices> | null = null;
@@ -72,6 +97,7 @@ function loadServices(): Promise<AppServices> {
 export function AppProvider({ children }: { children: ReactNode }) {
   const [services, setServices] = useState<AppServices | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pendingWorkoutMovement, setPendingWorkoutMovement] = useState<PendingWorkoutMovement | null>(null);
 
   useEffect(() => {
     loadServices().then(setServices, (e) => setError(String(e)));
@@ -79,5 +105,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   if (error) throw new Error(error);
   if (!services) return null; // splash stays up
-  return <Ctx.Provider value={services}>{children}</Ctx.Provider>;
+  return (
+    <Ctx.Provider
+      value={{
+        ...services,
+        pendingWorkoutMovement,
+        queueWorkoutMovement: setPendingWorkoutMovement,
+        clearPendingWorkoutMovement: (id: string) => {
+          setPendingWorkoutMovement((current) => (current?.id === id ? null : current));
+        },
+      }}
+    >
+      {children}
+    </Ctx.Provider>
+  );
 }

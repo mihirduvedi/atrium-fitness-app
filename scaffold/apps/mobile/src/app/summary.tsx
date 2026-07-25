@@ -13,6 +13,7 @@ import {
   type WorkoutSummaryData,
 } from '@/db/queries';
 import { layout, radius, space, useTheme } from '@/theme';
+import { displayWorkoutName } from '@/workoutNames';
 
 const MOODS = ['😫', '😕', '🙂', '💪', '🔥'];
 
@@ -100,9 +101,9 @@ export default function SummaryScreen() {
         <Text style={t.text('screenTitle')}>
           {prs.length > 0 ? 'Strong session.' : 'Logged. Onward.'}
         </Text>
-        {summary.dayName && (
-          <Text style={[t.text('bodyS', 'textMuted'), { marginTop: space[1] }]}>{summary.dayName}</Text>
-        )}
+        <Text style={[t.text('bodyS', 'textMuted'), { marginTop: space[1] }]}>
+          {displayWorkoutName(summary.customName, summary.dayName)}
+        </Text>
       </View>
 
       {prs.map((pr) => (
@@ -154,7 +155,7 @@ export default function SummaryScreen() {
           <Eyebrow>Keep this forever</Eyebrow>
           <Text style={[t.text('bodyM'), { marginBottom: space[3] }]}>
             Your training lives on this phone and syncs anonymously. Sign in with Apple to keep it
-            if you ever switch devices.
+            if you ever switch devices — same data, nothing moves.
           </Text>
           <Button
             title=" Sign in with Apple"

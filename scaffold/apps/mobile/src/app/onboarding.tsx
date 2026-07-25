@@ -18,6 +18,7 @@ import { useApp } from '@/AppContext';
 import { Button, Card, Eyebrow } from '@/components/ui';
 import { createProgramFromOnboarding } from '@/db/queries';
 import { borderWidth, layout, radius, space, useTheme } from '@/theme';
+import { formatWorkoutDayName } from '@/workoutNames';
 
 const DEFAULT_ANSWERS: OnboardingAnswers = {
   goal: 'strength',
@@ -358,7 +359,7 @@ export default function OnboardingScreen() {
             <Card style={{ marginTop: space[2] }}>
               <Eyebrow>Week 1 · Day 1</Eyebrow>
               <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: space[3] }}>
-                <Text style={[t.text('displayS'), { flex: 1 }]}>{firstDay?.name ?? 'First session'}</Text>
+                <Text style={[t.text('displayS'), { flex: 1 }]}>{firstDay ? formatWorkoutDayName(firstDay.name) : 'First session'}</Text>
                 <Text style={t.text('bodyS', 'textMuted')}>~50 min</Text>
               </View>
               <Text style={[t.text('bodyS', 'textMuted'), { marginTop: space[2] }]}>{firstExercises}</Text>

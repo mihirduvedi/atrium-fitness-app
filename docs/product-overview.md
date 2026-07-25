@@ -1,6 +1,6 @@
 # Atrium Product Overview
 
-Atrium is a work-in-progress fitness app focused on workout tracking, adaptive programming, and AI-assisted coaching.
+Atrium is a work-in-progress, iOS-first fitness app focused on offline strength logging, adaptive programming, recovery-aware readiness, and AI-assisted coaching grounded in real training data.
 
 ## The problem
 
@@ -10,7 +10,7 @@ Atrium is built around a simple idea: workout history should become guidance.
 
 ## The concept
 
-Atrium begins as a clean strength training tracker. Over time, it is designed to become a coaching layer that uses the user's own training history to support better decisions.
+Atrium begins as a reliable strength training tracker. Over time, it is designed to become a coaching layer that uses the user's own training history to support better decisions.
 
 The app is intended to help users:
 
@@ -21,6 +21,16 @@ The app is intended to help users:
 - receive adaptive programming suggestions
 - reflect on recovery and consistency
 - eventually interact with an AI coach grounded in their own data
+
+## Product model
+
+Atrium uses three product concepts consistently:
+
+1. An **Exercise** is one movement.
+2. A **Program** groups Exercises.
+3. A **Workout Plan** groups Programs around a goal such as strength, muscle, weight loss, or agility.
+
+The current storage model predates this user-facing language, so the app maps these concepts onto the existing schema rather than duplicating the data model.
 
 ## Target user
 
@@ -53,36 +63,33 @@ AI coaching should not feel generic. It should be connected to the user's actual
 
 The visual direction avoids loud fitness-app cliches. Atrium uses restrained typography, warm surfaces, clear hierarchy, and minimal color so training data remains the focus.
 
-## Current MVP areas
+## Current product areas
 
-The current project includes first passes at:
+The current project includes:
 
-- onboarding
-- today's training view
-- workout logging
-- workout summary
-- progress tab
-- coach tab
-- profile tab
-- exercise library
-- exercise detail pages
-- local data model
-- sync architecture
-- progression engine
-- design tokens
-- day/night visual system
+- onboarding that generates an initial plan through the progression engine
+- Today, Active Workout, and Workout Summary flows backed by local data
+- durable set logging, previous-session values, rest timing, warm-ups, movement skipping, and queue reordering
+- Exercise Library, custom movements, exercise detail, history, and PR trends
+- Program Library with scheduling, editing, movement management, and reordering
+- Workout Plan Library with goals, notes, active state, and Program management
+- Progress analytics and a local-only progress-photo timeline
+- readiness calculated from HealthKit and subjective signals
+- a grounded local Coach experience and Weekly Review
+- profile, light/dark appearance, privacy, deferred anonymous auth, and Apple upgrade scaffolding
+- SQLite storage, offline sync, Supabase schema/RLS, progression engine, and shared design tokens
 
 ## Future ideas
 
 Potential future directions include:
 
-- weekly review screen
-- program view
-- progress photos
-- HealthKit integration
-- richer readiness scoring
+- production AI Coach responses, tools, and safety guardrails
+- richer workout-history and Progress drilldowns
+- RevenueCat subscriptions and paywall
+- quick health or nutrition logging where it strengthens readiness and review
+- Strong and Hevy importers
+- exercise media and video library
 - AI-generated weekly review
-- coaching guardrails
 - app store launch assets
 - onboarding and product demo videos
 

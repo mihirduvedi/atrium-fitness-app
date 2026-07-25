@@ -5,6 +5,7 @@ export { selectArchetype } from './selector';
 export { instantiateProgram, resolveExercise } from './resolveSlots';
 export { nextPrescription } from './progress';
 export { applyReadiness } from './readiness';
+export { renderWarmups } from './warmups';
 export { detectStalls } from './stalls';
 export { shouldDeload } from './deload';
 export { validateChange, type BoundsContext } from './bounds';
