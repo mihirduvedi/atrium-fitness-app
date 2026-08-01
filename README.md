@@ -17,7 +17,7 @@ Atrium is in active development. The current app includes:
 - offline-first workout logging with durable sets, previous-session context, a rest timer, warm-ups, and reversible checkoffs
 - an adaptive TypeScript progression engine used by onboarding and the daily training plan
 - Exercise, Program, and Workout Plan libraries with search, filters, scheduling, custom movements, and drag reordering
-- Progress analytics, personal-record detection, local progress photos, and weekly review
+- Progress analytics, session-by-session workout history with set-level drilldowns, personal-record detection, local progress photos, and weekly review
 - a local Coach experience grounded in profile, workout, PR, readiness, and next-plan context
 - HealthKit import for sleep, resting heart rate, HRV, steps, and workouts in native iOS builds
 - SQLite storage, an offline mutation queue, Supabase sync architecture, row-level security, and deferred anonymous authentication
@@ -104,11 +104,17 @@ manually verified on-device.
 |---|---|
 | ![New Workout Plan builder](screenshots/new-workout-plan.png) | ![Workout Plan editor with included Programs](screenshots/workout-plan-editor.png) |
 
-### Progress and coaching
+### Progress and workout history
 
-| Progress | Coach | Weekly Review |
-|---|---|---|
-| ![Progress screen](screenshots/progress-first-pass.png) | ![Coach screen](screenshots/coach-first-pass.png) | ![Weekly Review](screenshots/weekly-review.png) |
+| Progress | Workout session detail |
+|---|---|
+| ![Progress screen](screenshots/progress-first-pass.png) | ![Workout session detail](screenshots/progress-session-detail.jpg) |
+
+### Coaching
+
+| Coach | Weekly Review |
+|---|---|
+| ![Coach screen](screenshots/coach-first-pass.png) | ![Weekly Review](screenshots/weekly-review.png) |
 
 ### More product surfaces
 

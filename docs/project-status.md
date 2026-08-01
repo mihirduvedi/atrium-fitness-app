@@ -16,7 +16,7 @@ Atrium is currently in active development. This file summarizes the public proje
 - onboarding and engine-selected initial program
 - Today, Active Workout, and Workout Summary flows
 - reversible set logging, warm-ups, rest timing, movement skipping, and workout queue reordering
-- Progress analytics and PR detection
+- Progress analytics, PR detection, and SQLite-backed workout session drilldowns with readiness, set, warm-up, and record detail
 - local-only Progress Photos timeline with tags, filtering, editing, and deletion
 - Coach context pack and grounded local replies
 - Weekly Review
@@ -47,7 +47,7 @@ These are not bugs; they are areas still planned or in progress.
 - Coach safety guardrails
 - Exercise media/video library
 - Importers from other fitness apps
-- stronger workout-history and Progress drilldowns
+- deeper weekly/monthly Progress breakdowns and exercise-level comparisons
 - offline first-launch row re-keying after later anonymous auth
 - onramp week advancement
 - full Apple upgrade-in-place credential/device QA
@@ -57,7 +57,7 @@ These are not bugs; they are areas still planned or in progress.
 ## Next build priorities
 
 1. Finish manual QA and polish of the core free tracker loop.
-2. Improve workout history and Progress analytics.
+2. Expand Progress analytics beyond the completed workout-history drilldown.
 3. Add quick logging only where it strengthens readiness and weekly review.
 4. Add subscriptions only after the free loop feels excellent.
 5. Build the production AI Coach backend, tools, and safety layer.

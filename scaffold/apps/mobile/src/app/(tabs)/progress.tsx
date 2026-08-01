@@ -282,16 +282,20 @@ export default function ProgressScreen() {
       <Card>
         <Eyebrow>Recent sessions</Eyebrow>
         {data.workouts.slice(0, 4).map((w, i) => (
-          <View
+          <Pressable
             key={w.id}
-            style={{
+            accessibilityRole="button"
+            accessibilityLabel={`Open ${displayWorkoutName(w.custom_name, w.day_name)} from ${dayLabel(w.started_at)}`}
+            onPress={() => router.push(`/workout-history/${w.id}`)}
+            style={({ pressed }) => ({
+              minHeight: 58,
               flexDirection: 'row',
-              justifyContent: 'space-between',
+              alignItems: 'center',
               gap: space[3],
-              paddingVertical: 11,
               borderTopWidth: i === 0 ? 0 : borderWidth.hairline,
               borderTopColor: t.colors.borderHairline,
-            }}
+              opacity: pressed ? 0.62 : 1,
+            })}
           >
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text numberOfLines={1} style={t.text('bodyM')}>
@@ -302,7 +306,8 @@ export default function ProgressScreen() {
             <Text style={t.text('dataS', 'textMuted')}>
               {compact(w.volume)} lb · {w.sets} sets
             </Text>
-          </View>
+            <Text style={t.text('bodyM', 'textFaint')}>›</Text>
+          </Pressable>
         ))}
         {data.workouts.length === 0 && (
           <Text style={t.text('bodyM', 'textMuted')}>Completed sessions will appear here.</Text>

@@ -1002,10 +1002,30 @@ export async function setWorkoutPlanActive(
     userId,
   );
   if (!row) return;
+  const updatedAt = nowIso();
+  if (active) {
+    const otherActivePlans = await db.getAllAsync<Row>(
+      `select *
+         from programs
+        where user_id = ?
+          and id <> ?
+          and status = 'active'
+          and deleted_at is null`,
+      userId,
+      planId,
+    );
+    for (const otherPlan of otherActivePlans) {
+      await upsertWithMutation(db, 'programs', {
+        ...otherPlan,
+        status: 'inactive',
+        updated_at: updatedAt,
+      }, idFn);
+    }
+  }
   await upsertWithMutation(db, 'programs', {
     ...row,
     status: active ? 'active' : 'inactive',
-    updated_at: nowIso(),
+    updated_at: updatedAt,
   }, idFn);
 }
 
@@ -1015,8 +1035,8 @@ export async function removeProgramFromWorkoutPlan(
   programDayId: string,
   idFn: IdFn,
 ): Promise<boolean> {
-  const row = await db.getFirstAsync<{ id: string }>(
-    `select d.id
+  const row = await db.getFirstAsync<{ id: string; program_id: string }>(
+    `select d.id, d.program_id
        from program_days d
        join programs p on p.id = d.program_id
       where d.id = ? and p.user_id = ? and d.deleted_at is null and p.deleted_at is null`,
@@ -1025,6 +1045,22 @@ export async function removeProgramFromWorkoutPlan(
   );
   if (!row) return false;
   await softDeleteWithMutation(db, 'program_days', row.id, idFn);
+  const remainingPrograms = await db.getAllAsync<Row>(
+    `select *
+       from program_days
+      where program_id = ? and deleted_at is null
+      order by day_index, id`,
+    row.program_id,
+  );
+  const updatedAt = nowIso();
+  for (const [dayIndex, program] of remainingPrograms.entries()) {
+    if (program.day_index === dayIndex) continue;
+    await upsertWithMutation(db, 'program_days', {
+      ...program,
+      day_index: dayIndex,
+      updated_at: updatedAt,
+    }, idFn);
+  }
   return true;
 }
 
@@ -1675,22 +1711,69 @@ export interface WorkoutSummaryData {
   endedAt: string | null;
   dayName: string | null;
   customName: string | null;
+  readinessAtStart: number | null;
   durationS: number;
   totalVolume: number;
   totalSets: number;
   sets: { exercise_id: string; set_index: number; weight: number | null; reps: number | null; is_warmup: number; completed_at: string }[];
+  subjective: {
+    energy: number | null;
+    mood: number | null;
+    sleepQuality: number | null;
+    soreness: number | null;
+  } | null;
+  records: {
+    exerciseId: string;
+    type: string;
+    value: number;
+    achievedAt: string;
+  }[];
 }
 
 export async function getWorkoutSummary(db: SqlDb, workoutId: string): Promise<WorkoutSummaryData | null> {
-  const w = await db.getFirstAsync<{ id: string; started_at: string; ended_at: string | null; program_day_id: string | null; notes: string | null }>(
-    'select id, started_at, ended_at, program_day_id, notes from workouts where id = ?',
+  const w = await db.getFirstAsync<{
+    id: string;
+    started_at: string;
+    ended_at: string | null;
+    program_day_id: string | null;
+    notes: string | null;
+    readiness_at_start: number | null;
+  }>(
+    'select id, started_at, ended_at, program_day_id, notes, readiness_at_start from workouts where id = ? and deleted_at is null',
     workoutId,
   );
   if (!w) return null;
-  const day = w.program_day_id
-    ? await db.getFirstAsync<{ name: string }>('select name from program_days where id = ?', w.program_day_id)
-    : null;
-  const sets = await getWorkoutSets(db, workoutId);
+  const [day, sets, subjective, records] = await Promise.all([
+    w.program_day_id
+      ? db.getFirstAsync<{ name: string }>('select name from program_days where id = ?', w.program_day_id)
+      : Promise.resolve(null),
+    getWorkoutSets(db, workoutId),
+    db.getFirstAsync<{
+      energy: number | null;
+      mood: number | null;
+      sleep_quality: number | null;
+      soreness: number | null;
+    }>(
+      `select energy, mood, sleep_quality, soreness
+         from subjective_tags
+        where workout_id = ? and deleted_at is null
+        order by updated_at desc
+        limit 1`,
+      workoutId,
+    ),
+    db.getAllAsync<{
+      exercise_id: string;
+      type: string;
+      value: number;
+      achieved_at: string;
+    }>(
+      `select exercise_id, type, value, achieved_at
+         from personal_records
+        where workout_id = ? and deleted_at is null
+        order by achieved_at desc`,
+      workoutId,
+    ),
+  ]);
   const work = sets.filter((s) => !s.is_warmup);
   return {
     workoutId,
@@ -1698,12 +1781,25 @@ export async function getWorkoutSummary(db: SqlDb, workoutId: string): Promise<W
     endedAt: w.ended_at,
     dayName: day?.name ?? null,
     customName: w.notes,
+    readinessAtStart: w.readiness_at_start,
     durationS: w.ended_at
       ? Math.max(0, Math.round((Date.parse(w.ended_at) - Date.parse(w.started_at)) / 1000))
       : 0,
     totalVolume: work.reduce((t, s) => t + (s.weight ?? 0) * (s.reps ?? 0), 0),
     totalSets: work.length,
     sets,
+    subjective: subjective ? {
+      energy: subjective.energy,
+      mood: subjective.mood,
+      sleepQuality: subjective.sleep_quality,
+      soreness: subjective.soreness,
+    } : null,
+    records: records.map((record) => ({
+      exerciseId: record.exercise_id,
+      type: record.type,
+      value: record.value,
+      achievedAt: record.achieved_at,
+    })),
   };
 }
 
@@ -1735,7 +1831,14 @@ export async function savePersonalRecord(
 
 export async function saveSubjectiveTag(
   db: SqlDb,
-  args: { userId: string; workoutId: string; energy: number; mood: number },
+  args: {
+    userId: string;
+    workoutId: string;
+    energy: number;
+    mood: number;
+    sleepQuality?: number | null;
+    soreness?: number | null;
+  },
   idFn: IdFn,
 ): Promise<void> {
   const ts = nowIso();
@@ -1746,8 +1849,8 @@ export async function saveSubjectiveTag(
     date: dateOf(ts),
     energy: args.energy,
     mood: args.mood,
-    sleep_quality: null,
-    soreness: null,
+    sleep_quality: args.sleepQuality ?? null,
+    soreness: args.soreness ?? null,
     updated_at: ts,
     deleted_at: null,
   }, idFn);

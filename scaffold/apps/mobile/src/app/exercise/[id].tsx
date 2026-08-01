@@ -277,8 +277,8 @@ export default function ExerciseDetailScreen() {
   if (!id || !exercise) {
     return (
       <ScreenScroll>
-        <Pressable onPress={() => router.back()} hitSlop={10}>
-          <Text style={t.text('bodyS', 'textMuted')}>‹ Library</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={() => router.back()} hitSlop={10}>
+          <Text style={t.text('bodyS', 'textMuted')}>‹ Back</Text>
         </Pressable>
         <Card>
           <Text style={t.text('bodyM', 'textMuted')}>Exercise not found.</Text>
@@ -294,8 +294,8 @@ export default function ExerciseDetailScreen() {
   return (
     <ScreenScroll>
       <View style={{ paddingHorizontal: 2, paddingTop: space[2], paddingBottom: space[2] }}>
-        <Pressable onPress={() => router.back()} hitSlop={10}>
-          <Text style={t.text('bodyS', 'textMuted')}>‹ Library</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={() => router.back()} hitSlop={10}>
+          <Text style={t.text('bodyS', 'textMuted')}>‹ Back</Text>
         </Pressable>
         <Text style={[t.text('screenTitle'), { marginTop: space[5] }]}>{exercise.name}</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[2], marginTop: space[3] }}>

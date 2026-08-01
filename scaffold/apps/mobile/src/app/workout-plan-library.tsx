@@ -118,12 +118,15 @@ function Chip({ label, active, onPress }: { label: string; active: boolean; onPr
   );
 }
 
-function ActiveCheck({ active, onPress }: { active: boolean; onPress: () => void }) {
+function ActiveCheck({ active, label, onPress }: { active: boolean; label: string; onPress: () => void }) {
   const t = useTheme();
   return (
     <Pressable
       onPress={onPress}
       hitSlop={8}
+      accessibilityRole="checkbox"
+      accessibilityLabel={label}
+      accessibilityState={{ checked: active }}
       style={({ pressed }) => ({
         width: 32,
         height: 32,
@@ -472,32 +475,49 @@ export default function WorkoutPlanLibraryScreen() {
         ) : (
           filtered.map((plan, index) => {
             const activePrograms = plan.programs.filter((program) => program.active);
+            const name = planName(plan);
             return (
-              <Pressable
+              <View
                 key={plan.planId}
-                onPress={() => beginEdit(plan)}
-                style={({ pressed }) => ({
+                style={{
                   minHeight: 78,
                   flexDirection: 'row',
                   alignItems: 'center',
                   gap: space[3],
                   borderTopWidth: index === 0 ? 0 : borderWidth.hairline,
                   borderTopColor: t.colors.borderHairline,
-                  opacity: pressed ? 0.64 : 1,
-                })}
+                }}
               >
-                <ActiveCheck active={plan.active} onPress={() => void toggleActive(plan)} />
-                <View style={{ flex: 1, minWidth: 0, paddingVertical: 12 }}>
-                  <Text numberOfLines={1} style={t.text('bodyM')}>{planName(plan)}</Text>
-                  <Text numberOfLines={1} style={t.text('bodyS', 'textMuted')}>
-                    {goalLabel(plan.goal)} · {plural(activePrograms.length, 'active program')} · {plan.active ? 'Active' : 'Inactive'}
-                  </Text>
-                  <Text numberOfLines={1} style={t.text('bodyS', 'textFaint')}>
-                    {plan.programs.map((program) => formatWorkoutDayName(program.name)).join(' · ') || 'No programs'}
-                  </Text>
-                </View>
-                <Text style={t.text('bodyM', 'textFaint')}>›</Text>
-              </Pressable>
+                <ActiveCheck
+                  active={plan.active}
+                  label={`Use ${name} as active workout plan`}
+                  onPress={() => void toggleActive(plan)}
+                />
+                <Pressable
+                  onPress={() => beginEdit(plan)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Edit ${name}`}
+                  style={({ pressed }) => ({
+                    flex: 1,
+                    minWidth: 0,
+                    minHeight: 78,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    opacity: pressed ? 0.64 : 1,
+                  })}
+                >
+                  <View style={{ flex: 1, minWidth: 0, paddingVertical: 12 }}>
+                    <Text numberOfLines={1} style={t.text('bodyM')}>{name}</Text>
+                    <Text numberOfLines={1} style={t.text('bodyS', 'textMuted')}>
+                      {goalLabel(plan.goal)} · {plural(activePrograms.length, 'active program')} · {plan.active ? 'Active' : 'Inactive'}
+                    </Text>
+                    <Text numberOfLines={1} style={t.text('bodyS', 'textFaint')}>
+                      {plan.programs.map((program) => formatWorkoutDayName(program.name)).join(' · ') || 'No programs'}
+                    </Text>
+                  </View>
+                  <Text style={t.text('bodyM', 'textFaint')}>›</Text>
+                </Pressable>
+              </View>
             );
           })
         )}

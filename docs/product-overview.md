@@ -73,7 +73,7 @@ The current project includes:
 - Exercise Library, custom movements, exercise detail, history, and PR trends
 - Program Library with scheduling, editing, movement management, and reordering
 - Workout Plan Library with goals, notes, active state, and Program management
-- Progress analytics and a local-only progress-photo timeline
+- Progress analytics, workout session drilldowns with set-level detail, and a local-only progress-photo timeline
 - readiness calculated from HealthKit and subjective signals
 - a grounded local Coach experience and Weekly Review
 - profile, light/dark appearance, privacy, deferred anonymous auth, and Apple upgrade scaffolding
@@ -84,7 +84,7 @@ The current project includes:
 Potential future directions include:
 
 - production AI Coach responses, tools, and safety guardrails
-- richer workout-history and Progress drilldowns
+- deeper weekly/monthly Progress breakdowns and exercise comparisons
 - RevenueCat subscriptions and paywall
 - quick health or nutrition logging where it strengthens readiness and review
 - Strong and Hevy importers

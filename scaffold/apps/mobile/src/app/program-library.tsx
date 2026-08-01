@@ -159,12 +159,15 @@ function DayCircle({ label, active, onPress }: { label: string; active: boolean;
   );
 }
 
-function ActiveCheck({ active, onPress }: { active: boolean; onPress: () => void }) {
+function ActiveCheck({ active, label, onPress }: { active: boolean; label: string; onPress: () => void }) {
   const t = useTheme();
   return (
     <Pressable
       onPress={onPress}
       hitSlop={8}
+      accessibilityRole="checkbox"
+      accessibilityLabel={label}
+      accessibilityState={{ checked: active }}
       style={({ pressed }) => ({
         width: 32,
         height: 32,
@@ -237,7 +240,7 @@ function notesInputStyle(t: ReturnType<typeof useTheme>) {
 
 function CalendarPreview({ items }: { items: ProgramLibraryItem[] }) {
   const t = useTheme();
-  const active = items.filter((item) => item.active);
+  const active = items.filter((item) => item.workoutPlanStatus === 'active' && item.active);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const programsForDay = (weekday: number) =>
     active.filter((item) => {
@@ -867,33 +870,52 @@ export default function ProgramLibraryScreen() {
         {filtered.length === 0 ? (
           <Text style={[t.text('bodyM', 'textMuted'), { paddingVertical: space[4] }]}>No programs match that search.</Text>
         ) : (
-          filtered.map((item, index) => (
-            <Pressable
-              key={item.programDayId}
-              onPress={() => beginEdit(item)}
-              style={({ pressed }) => ({
-                minHeight: 78,
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: space[3],
-                borderTopWidth: index === 0 ? 0 : borderWidth.hairline,
-                borderTopColor: t.colors.borderHairline,
-                opacity: pressed ? 0.64 : 1,
-              })}
-            >
-              <ActiveCheck active={item.active} onPress={() => void toggleActive(item)} />
-              <View style={{ flex: 1, minWidth: 0, paddingVertical: 12 }}>
-                <Text numberOfLines={1} style={t.text('bodyM')}>{formatWorkoutDayName(item.name)}</Text>
-                <Text numberOfLines={1} style={t.text('bodyS', 'textMuted')}>
-                  {labelForCategory(item.category)} · {plural(item.movements.length, 'movement')} · {scheduleLabel(item)}
-                </Text>
-                <Text numberOfLines={1} style={t.text('bodyS', 'textFaint')}>
-                  {item.movements.map((movement) => movement.exerciseName).join(' · ') || 'No movements'}
-                </Text>
+          filtered.map((item, index) => {
+            const name = formatWorkoutDayName(item.name);
+            return (
+              <View
+                key={item.programDayId}
+                style={{
+                  minHeight: 78,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: space[3],
+                  borderTopWidth: index === 0 ? 0 : borderWidth.hairline,
+                  borderTopColor: t.colors.borderHairline,
+                }}
+              >
+                <ActiveCheck
+                  active={item.active}
+                  label={`Include ${name} in its workout plan schedule`}
+                  onPress={() => void toggleActive(item)}
+                />
+                <Pressable
+                  onPress={() => beginEdit(item)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Edit ${name}`}
+                  style={({ pressed }) => ({
+                    flex: 1,
+                    minWidth: 0,
+                    minHeight: 78,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    opacity: pressed ? 0.64 : 1,
+                  })}
+                >
+                  <View style={{ flex: 1, minWidth: 0, paddingVertical: 12 }}>
+                    <Text numberOfLines={1} style={t.text('bodyM')}>{name}</Text>
+                    <Text numberOfLines={1} style={t.text('bodyS', 'textMuted')}>
+                      {labelForCategory(item.category)} · {plural(item.movements.length, 'movement')} · {scheduleLabel(item)}
+                    </Text>
+                    <Text numberOfLines={1} style={t.text('bodyS', 'textFaint')}>
+                      {item.movements.map((movement) => movement.exerciseName).join(' · ') || 'No movements'}
+                    </Text>
+                  </View>
+                  <Text style={t.text('bodyM', 'textFaint')}>›</Text>
+                </Pressable>
               </View>
-              <Text style={t.text('bodyM', 'textFaint')}>›</Text>
-            </Pressable>
-          ))
+            );
+          })
         )}
       </Card>
     </ScreenScroll>

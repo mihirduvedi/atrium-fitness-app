@@ -48,6 +48,7 @@ function RootStack() {
           <Stack.Screen name="workout-plan-library" />
           <Stack.Screen name="photos" />
           <Stack.Screen name="exercise/[id]" />
+          <Stack.Screen name="workout-history/[workoutId]" />
           <Stack.Screen name="review" />
           <Stack.Screen name="workout" options={{ gestureEnabled: false }} />
           <Stack.Screen name="summary" options={{ gestureEnabled: false }} />

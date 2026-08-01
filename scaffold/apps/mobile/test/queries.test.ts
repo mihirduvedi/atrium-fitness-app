@@ -35,6 +35,7 @@ import {
   saveProgramDaySettings,
   saveWorkoutPlanSettings,
   savePersonalRecord,
+  saveSubjectiveTag,
   setProgramDayActive,
   setWorkoutPlanActive,
   saveWorkoutDraft,
@@ -353,18 +354,26 @@ describe('Stage 5 data layer: Today plans from real engine + SQLite state', () =
     }, id);
     const sourceProgram = plans[0]!.programs[0]!;
     const copiedProgramId = await cloneProgramIntoWorkoutPlan(db, USER, sourceProgram.programDayId, newPlanId, id);
+    const secondSourceProgram = plans[0]!.programs[1]!;
+    const secondCopiedProgramId = await cloneProgramIntoWorkoutPlan(db, USER, secondSourceProgram.programDayId, newPlanId, id);
     expect(copiedProgramId).not.toBeNull();
+    expect(secondCopiedProgramId).not.toBeNull();
 
     await setWorkoutPlanActive(db, USER, newPlanId, true, id);
     plans = await listWorkoutPlanLibrary(db, USER);
     const newPlan = plans.find((plan) => plan.planId === newPlanId)!;
     expect(newPlan).toMatchObject({ name: 'Weight Loss Plan', goal: 'weight_loss', active: true });
-    expect(newPlan.programs).toHaveLength(1);
+    expect(plans.find((plan) => plan.planId !== newPlanId)).toMatchObject({ active: false });
+    expect((await getActiveProgram(db, USER))!.id).toBe(newPlanId);
+    expect(newPlan.programs).toHaveLength(2);
     expect(newPlan.programs[0]).toMatchObject({ name: sourceProgram.name });
+    expect(newPlan.programs.map((program) => program.dayIndex)).toEqual([0, 1]);
 
     expect(await removeProgramFromWorkoutPlan(db, USER, copiedProgramId!, id)).toBe(true);
     plans = await listWorkoutPlanLibrary(db, USER);
-    expect(plans.find((plan) => plan.planId === newPlanId)!.programs).toHaveLength(0);
+    expect(plans.find((plan) => plan.planId === newPlanId)!.programs).toMatchObject([
+      { programDayId: secondCopiedProgramId, dayIndex: 0, name: secondSourceProgram.name },
+    ]);
   });
 });
 
@@ -674,7 +683,7 @@ describe('Stage 5 data layer: Summary', () => {
     const program = (await getActiveProgram(db, USER))!;
     const day = (await getNextProgramDay(db, program.id))!;
     const plan = await planSession(db, USER, day, id);
-    const workoutId = await startWorkout(db, USER, day.dayId, id);
+    const workoutId = await startWorkout(db, USER, day.dayId, id, 82);
     for (const p of plan.prescriptions) {
       for (const s of p.sets) {
         await logSet(db, {
@@ -688,11 +697,21 @@ describe('Stage 5 data layer: Summary', () => {
       }
     }
     await finishWorkout(db, workoutId, id);
+    await saveSubjectiveTag(db, {
+      userId: USER,
+      workoutId,
+      energy: 4,
+      mood: 5,
+      sleepQuality: 3,
+      soreness: 2,
+    }, id);
 
     const summary = (await getWorkoutSummary(db, workoutId))!;
     expect(summary.totalSets).toBeGreaterThan(10);
     expect(summary.totalVolume).toBeGreaterThan(0);
     expect(summary.endedAt).not.toBeNull();
+    expect(summary.readinessAtStart).toBe(82);
+    expect(summary.subjective).toEqual({ energy: 4, mood: 5, sleepQuality: 3, soreness: 2 });
 
     const history = await getHistory(db, USER);
     const workoutDate = summary.startedAt.slice(0, 10);
@@ -711,5 +730,6 @@ describe('Stage 5 data layer: Summary', () => {
     }
     const saved = await db.getFirstAsync<{ n: number }>('select count(*) as n from personal_records');
     expect(saved!.n).toBe(prs.length);
+    expect((await getWorkoutSummary(db, workoutId))!.records).toHaveLength(prs.length);
   });
 });

@@ -18,7 +18,7 @@ export function ScreenScroll({
 }) {
   const t = useTheme();
   const pathname = usePathname();
-  const showProfileShortcut = !pathname.includes('onboarding') && !pathname.includes('profile') && !pathname.includes('workout');
+  const showProfileShortcut = !pathname.includes('onboarding') && !pathname.includes('profile') && pathname !== '/workout';
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: t.colors.bgCanvas }}>
       <ScrollView
