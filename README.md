@@ -14,10 +14,11 @@ This project also reflects my interest in combining computer science and creativ
 
 Atrium is in active development. The current app includes:
 
-- offline-first workout logging with durable sets, previous-session context, a rest timer, warm-ups, and reversible checkoffs
+- offline-first workout logging with durable sets, previous-session context, a per-program between-set rest timer, early exercise completion, warm-ups, numeric inputs, and reversible checkoffs
 - an adaptive TypeScript progression engine used by onboarding and the daily training plan
 - Exercise, Program, and Workout Plan libraries with search, filters, scheduling, custom movements, and drag reordering
-- Progress analytics, session-by-session workout history with set-level drilldowns, personal-record detection, local progress photos, and weekly review
+- Progress analytics with 4/12-week and exercise-level comparisons, session-by-session workout history with set-level drilldowns, personal-record detection, local progress photos, and weekly review
+- a daily recovery and body-weight check-in that updates readiness, planned training stress, real seven-day weight trends, and Weekly Review context
 - a local Coach experience grounded in profile, workout, PR, readiness, and next-plan context
 - HealthKit import for sleep, resting heart rate, HRV, steps, and workouts in native iOS builds
 - SQLite storage, an offline mutation queue, Supabase sync architecture, row-level security, and deferred anonymous authentication
@@ -71,16 +72,16 @@ Atrium uses a restrained, warm visual system inspired by fitness journaling, rec
 |---|---|---|
 | ![Today screen](screenshots/today-focused.png) | ![Active Workout screen](screenshots/workout-focused.png) | ![Workout Summary screen](screenshots/summary-focused.png) |
 
-### Health and readiness
+### Health, readiness, and daily check-in
 
-| Connected health samples | Recovery-aware Today |
-|---|---|
-| ![Profile showing connected health samples](screenshots/health-import-samples.png) | ![Today screen showing readiness calculated from sleep, resting heart rate, and HRV](screenshots/readiness-health-samples.png) |
+| Connected health samples | Recovery-aware Today | Daily check-in |
+|---|---|---|
+| ![Profile showing connected health samples](screenshots/health-import-samples.png) | ![Today screen showing readiness calculated from sleep, resting heart rate, and HRV](screenshots/readiness-health-samples.png) | ![Daily recovery and body-weight check-in](screenshots/daily-check-in.png) |
 
 HealthKit authorization and import require a native development build on a real
-iPhone. The readiness capture above uses representative simulator samples
-through the same scoring pipeline; the native import path has also been
-manually verified on-device.
+iPhone. The readiness and daily-check-in captures above use representative
+simulator data through the same local scoring pipeline; the native import path
+has also been manually verified on-device.
 
 ### Libraries
 
@@ -108,7 +109,7 @@ manually verified on-device.
 
 | Progress | Workout session detail |
 |---|---|
-| ![Progress screen](screenshots/progress-first-pass.png) | ![Workout session detail](screenshots/progress-session-detail.jpg) |
+| ![Progress analytics](screenshots/progress-analytics.png) | ![Workout session detail](screenshots/progress-session-detail.jpg) |
 
 ### Coaching
 

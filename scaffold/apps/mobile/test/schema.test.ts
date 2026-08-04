@@ -54,7 +54,8 @@ describe('on-device SQLite schema', () => {
     ]);
     expect(await cols('program_day_settings')).toEqual([
       'program_day_id', 'user_id', 'active', 'category', 'notes',
-      'repeat_every', 'repeat_unit', 'weekdays', 'updated_at', 'deleted_at',
+      'repeat_every', 'repeat_unit', 'weekdays', 'set_rest_s',
+      'exercise_rest_s', 'updated_at', 'deleted_at',
     ]);
     expect(await cols('workout_plan_settings')).toEqual([
       'program_id', 'user_id', 'name', 'goal', 'notes', 'updated_at', 'deleted_at',
@@ -141,6 +142,8 @@ describe('on-device SQLite schema', () => {
     await migrate(db);
     const cols = (await db.getAllAsync<{ name: string }>('pragma table_info(program_day_settings)')).map((c) => c.name);
     expect(cols).toContain('active');
+    expect(cols).toContain('set_rest_s');
+    expect(cols).toContain('exercise_rest_s');
     expect(cols).toContain('weekdays');
     db.close();
   });
@@ -165,8 +168,50 @@ describe('on-device SQLite schema', () => {
     await migrate(db);
     const cols = (await db.getAllAsync<{ name: string }>('pragma table_info(program_day_settings)')).map((c) => c.name);
     expect(cols).toContain('active');
+    expect(cols).toContain('set_rest_s');
+    expect(cols).toContain('exercise_rest_s');
     const tables = (await db.getAllAsync<{ name: string }>("select name from sqlite_master where type = 'table'")).map((t) => t.name);
     expect(tables).toContain('workout_plan_settings');
+    db.close();
+  });
+
+  it('repairs categories overwritten by the old active toggle migration', async () => {
+    const db = openNodeDb();
+    await migrate(db);
+    await db.execAsync(`
+      insert into programs (id, user_id, archetype_id, status, started_at, current_week, updated_at, deleted_at)
+      values ('plan', 'u1', 'demo', 'active', '2026-08-01T00:00:00.000Z', 1, '2026-08-01T00:00:00.000Z', null);
+      insert into program_days (id, program_id, day_index, name, updated_at, deleted_at) values
+        ('upper', 'plan', 0, 'Upper — Strength', '2026-08-01T00:00:00.000Z', null),
+        ('lower', 'plan', 1, 'Lower Body — Volume', '2026-08-01T00:00:00.000Z', null),
+        ('chest', 'plan', 2, 'Chest Focus', '2026-08-01T00:00:00.000Z', null),
+        ('back', 'plan', 3, 'Back and Pull', '2026-08-01T00:00:00.000Z', null),
+        ('arms', 'plan', 4, 'Arms', '2026-08-01T00:00:00.000Z', null),
+        ('other', 'plan', 5, 'Conditioning', '2026-08-01T00:00:00.000Z', null);
+      insert into program_day_settings (
+        program_day_id, user_id, active, category, notes, repeat_every, repeat_unit, weekdays, updated_at, deleted_at
+      ) values
+        ('upper', 'u1', 1, 'other', null, 1, 'week', '[]', '2026-08-01T00:00:00.000Z', null),
+        ('lower', 'u1', 1, 'other', null, 1, 'week', '[]', '2026-08-01T00:00:00.000Z', null),
+        ('chest', 'u1', 1, 'other', null, 1, 'week', '[]', '2026-08-01T00:00:00.000Z', null),
+        ('back', 'u1', 1, 'other', null, 1, 'week', '[]', '2026-08-01T00:00:00.000Z', null),
+        ('arms', 'u1', 1, 'other', null, 1, 'week', '[]', '2026-08-01T00:00:00.000Z', null),
+        ('other', 'u1', 1, 'other', null, 1, 'week', '[]', '2026-08-01T00:00:00.000Z', null);
+      pragma user_version = 8;
+    `);
+
+    await migrate(db);
+    const rows = await db.getAllAsync<{ program_day_id: string; category: string }>(
+      'select program_day_id, category from program_day_settings order by program_day_id',
+    );
+    expect(Object.fromEntries(rows.map((row) => [row.program_day_id, row.category]))).toEqual({
+      arms: 'arms',
+      back: 'back',
+      chest: 'chest',
+      lower: 'lower',
+      other: 'other',
+      upper: 'upper',
+    });
     db.close();
   });
 

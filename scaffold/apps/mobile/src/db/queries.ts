@@ -320,12 +320,25 @@ export interface NextDay {
   week: number;
   completedThisWeek: number;
   daysPerWeek: number;
+  setRestSeconds: number | null;
+  exerciseRestSeconds: number | null;
+}
+
+function normalizeRestSeconds(value?: number | null): number | null {
+  if (value === null || value === undefined || !Number.isFinite(value)) return null;
+  return Math.max(0, Math.min(900, Math.round(value)));
 }
 
 /** Rotation: completed workouts → next day_index; week = floor(count / days) + 1. */
 export async function getNextProgramDay(db: SqlDb, programId: string): Promise<NextDay | null> {
-  const days = await db.getAllAsync<{ id: string; day_index: number; name: string }>(
-    `select d.id, d.day_index, d.name
+  const days = await db.getAllAsync<{
+    id: string;
+    day_index: number;
+    name: string;
+    set_rest_s: number | null;
+    exercise_rest_s: number | null;
+  }>(
+    `select d.id, d.day_index, d.name, s.set_rest_s, s.exercise_rest_s
        from program_days d
        left join program_day_settings s on s.program_day_id = d.id and s.deleted_at is null
       where d.program_id = ? and d.deleted_at is null and coalesce(s.active, 1) = 1
@@ -348,6 +361,8 @@ export async function getNextProgramDay(db: SqlDb, programId: string): Promise<N
     week: Math.floor(count / days.length) + 1,
     completedThisWeek: count % days.length,
     daysPerWeek: days.length,
+    setRestSeconds: normalizeRestSeconds(day.set_rest_s),
+    exerciseRestSeconds: normalizeRestSeconds(day.exercise_rest_s),
   };
 }
 
@@ -589,6 +604,8 @@ export interface ProgramLibraryItem {
   repeatEvery: number;
   repeatUnit: ProgramRepeatUnit;
   weekdays: number[];
+  setRestSeconds: number | null;
+  exerciseRestSeconds: number | null;
   completedWorkouts: number;
   lastCompletedAt: string | null;
   movements: ProgramSlotOverview[];
@@ -658,6 +675,8 @@ export async function listProgramLibrary(db: SqlDb, userId: string): Promise<Pro
     repeat_every: number | null;
     repeat_unit: string | null;
     weekdays: string | null;
+    set_rest_s: number | null;
+    exercise_rest_s: number | null;
     slot_id: string | null;
     slot_index: number | null;
     pattern: string | null;
@@ -678,6 +697,8 @@ export async function listProgramLibrary(db: SqlDb, userId: string): Promise<Pro
             ps.repeat_every,
             ps.repeat_unit,
             ps.weekdays,
+            ps.set_rest_s,
+            ps.exercise_rest_s,
             s.id as slot_id,
             s.slot_index,
             s.pattern,
@@ -724,6 +745,8 @@ export async function listProgramLibrary(db: SqlDb, userId: string): Promise<Pro
         repeatEvery: Math.max(1, Math.min(7, Math.round(row.repeat_every ?? 1))),
         repeatUnit: normalizeRepeatUnit(row.repeat_unit),
         weekdays: parseWeekdays(row.weekdays),
+        setRestSeconds: normalizeRestSeconds(row.set_rest_s),
+        exerciseRestSeconds: normalizeRestSeconds(row.exercise_rest_s),
         completedWorkouts: completed?.n ?? 0,
         lastCompletedAt: completed?.last_completed_at ?? null,
         movements: [],
@@ -814,27 +837,48 @@ export async function saveProgramDaySettings(
     repeatEvery?: number;
     repeatUnit?: ProgramRepeatUnit;
     weekdays?: number[];
+    setRestSeconds?: number | null;
+    exerciseRestSeconds?: number | null;
   },
 ): Promise<void> {
   const existing = await db.getFirstAsync<{
-    active: number;
-    category: string;
+    active: number | null;
+    category: string | null;
     notes: string | null;
-    repeat_every: number;
-    repeat_unit: string;
-    weekdays: string;
-  }>('select active, category, notes, repeat_every, repeat_unit, weekdays from program_day_settings where program_day_id = ?', args.programDayId);
+    repeat_every: number | null;
+    repeat_unit: string | null;
+    weekdays: string | null;
+    set_rest_s: number | null;
+    exercise_rest_s: number | null;
+    day_name: string;
+  }>(
+    `select ps.active, ps.category, ps.notes, ps.repeat_every, ps.repeat_unit, ps.weekdays,
+            ps.set_rest_s, ps.exercise_rest_s, d.name as day_name
+       from program_days d
+       left join program_day_settings ps on ps.program_day_id = d.id and ps.deleted_at is null
+      where d.id = ? and d.deleted_at is null`,
+    args.programDayId,
+  );
   const ts = nowIso();
   const active = args.active === undefined ? existing?.active ?? 1 : args.active ? 1 : 0;
-  const category = normalizeProgramCategory(args.category ?? existing?.category ?? null);
+  const category = normalizeProgramCategory(
+    args.category ?? existing?.category ?? inferProgramCategory(existing?.day_name ?? ''),
+  );
   const notes = args.notes === undefined ? existing?.notes ?? null : args.notes?.trim() || null;
   const repeatEvery = Math.max(1, Math.min(7, Math.round(args.repeatEvery ?? existing?.repeat_every ?? 1)));
   const repeatUnit = normalizeRepeatUnit(args.repeatUnit ?? existing?.repeat_unit);
   const weekdays = args.weekdays ?? parseWeekdays(existing?.weekdays);
+  const setRestSeconds = args.setRestSeconds === undefined
+    ? normalizeRestSeconds(existing?.set_rest_s)
+    : normalizeRestSeconds(args.setRestSeconds);
+  const exerciseRestSeconds = args.exerciseRestSeconds === undefined
+    ? normalizeRestSeconds(existing?.exercise_rest_s)
+    : normalizeRestSeconds(args.exerciseRestSeconds);
   await db.runAsync(
     `insert into program_day_settings (
-       program_day_id, user_id, active, category, notes, repeat_every, repeat_unit, weekdays, updated_at, deleted_at
-     ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, null)
+       program_day_id, user_id, active, category, notes, repeat_every, repeat_unit, weekdays,
+       set_rest_s, exercise_rest_s, updated_at, deleted_at
+     ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, null)
      on conflict (program_day_id) do update set
        user_id = excluded.user_id,
        active = excluded.active,
@@ -843,6 +887,8 @@ export async function saveProgramDaySettings(
        repeat_every = excluded.repeat_every,
        repeat_unit = excluded.repeat_unit,
        weekdays = excluded.weekdays,
+       set_rest_s = excluded.set_rest_s,
+       exercise_rest_s = excluded.exercise_rest_s,
        updated_at = excluded.updated_at,
        deleted_at = null`,
     args.programDayId,
@@ -853,6 +899,8 @@ export async function saveProgramDaySettings(
     repeatEvery,
     repeatUnit,
     JSON.stringify(weekdays.filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)),
+    setRestSeconds,
+    exerciseRestSeconds,
     ts,
   );
 }
@@ -883,6 +931,8 @@ export async function createProgramDayTemplate(
     repeatEvery?: number;
     repeatUnit?: ProgramRepeatUnit;
     weekdays?: number[];
+    setRestSeconds?: number | null;
+    exerciseRestSeconds?: number | null;
     active?: boolean;
   },
   idFn: IdFn,
@@ -913,6 +963,8 @@ export async function createProgramDayTemplate(
     repeatEvery: args.repeatEvery ?? 1,
     repeatUnit: args.repeatUnit ?? 'week',
     weekdays: args.weekdays ?? [],
+    setRestSeconds: args.setRestSeconds,
+    exerciseRestSeconds: args.exerciseRestSeconds,
   });
   return programDayId;
 }
@@ -1100,7 +1152,12 @@ export async function cloneProgramIntoWorkoutPlan(
       repeat_every: number;
       repeat_unit: string;
       weekdays: string;
-    }>('select active, category, notes, repeat_every, repeat_unit, weekdays from program_day_settings where program_day_id = ?', sourceProgramDayId),
+      set_rest_s: number | null;
+      exercise_rest_s: number | null;
+    }>(`select active, category, notes, repeat_every, repeat_unit, weekdays,
+              set_rest_s, exercise_rest_s
+           from program_day_settings
+          where program_day_id = ?`, sourceProgramDayId),
     db.getAllAsync<Row>(
       `select * from program_slots
         where program_day_id = ? and deleted_at is null
@@ -1123,11 +1180,13 @@ export async function cloneProgramIntoWorkoutPlan(
     userId,
     programDayId: nextProgramDayId,
     active: sourceSettings?.active === undefined ? true : !!sourceSettings.active,
-    category: normalizeProgramCategory(sourceSettings?.category),
+    category: normalizeProgramCategory(sourceSettings?.category ?? inferProgramCategory(sourceDay.name)),
     notes: sourceSettings?.notes ?? null,
     repeatEvery: sourceSettings?.repeat_every ?? 1,
     repeatUnit: normalizeRepeatUnit(sourceSettings?.repeat_unit),
     weekdays: parseWeekdays(sourceSettings?.weekdays),
+    setRestSeconds: normalizeRestSeconds(sourceSettings?.set_rest_s),
+    exerciseRestSeconds: normalizeRestSeconds(sourceSettings?.exercise_rest_s),
   });
   for (const slot of sourceSlots) {
     await upsertWithMutation(db, 'program_slots', {
@@ -1320,8 +1379,9 @@ async function hydrateDraftSetUi(
   plan: SessionPlan,
   stored: WorkoutDraftSetUi,
 ): Promise<WorkoutDraftSetUi> {
-  const next = defaultSetUiForPlan(plan);
-  for (const key of Object.keys(next)) {
+  const defaultSetUi = defaultSetUiForPlan(plan);
+  const next: WorkoutDraftSetUi = { ...stored, ...defaultSetUi };
+  for (const key of Object.keys(defaultSetUi)) {
     const saved = stored[key];
     if (saved) {
       next[key] = {
@@ -1364,9 +1424,17 @@ async function hydrateDraftSetUi(
 }
 
 export async function getProgramDayContext(db: SqlDb, programDayId: string): Promise<NextDay | null> {
-  const row = await db.getFirstAsync<{ id: string; program_id: string; day_index: number; name: string }>(
-    `select d.id, d.program_id, d.day_index, d.name
+  const row = await db.getFirstAsync<{
+    id: string;
+    program_id: string;
+    day_index: number;
+    name: string;
+    set_rest_s: number | null;
+    exercise_rest_s: number | null;
+  }>(
+    `select d.id, d.program_id, d.day_index, d.name, s.set_rest_s, s.exercise_rest_s
        from program_days d
+       left join program_day_settings s on s.program_day_id = d.id and s.deleted_at is null
       where d.id = ? and d.deleted_at is null`,
     programDayId,
   );
@@ -1391,6 +1459,8 @@ export async function getProgramDayContext(db: SqlDb, programDayId: string): Pro
     week: Math.floor(completed / daysPerWeek) + 1,
     completedThisWeek: completed % daysPerWeek,
     daysPerWeek,
+    setRestSeconds: normalizeRestSeconds(row.set_rest_s),
+    exerciseRestSeconds: normalizeRestSeconds(row.exercise_rest_s),
   };
 }
 
@@ -1699,6 +1769,162 @@ export async function getPreviousSession(
     prev.id,
     exerciseId,
   );
+}
+
+// ---------------------------------------------------------------------------
+// progress analytics
+// ---------------------------------------------------------------------------
+
+export interface ProgressPeriodStats {
+  volume: number;
+  sessions: number;
+  sets: number;
+}
+
+export interface ProgressWeekStats extends ProgressPeriodStats {
+  startedAt: string;
+}
+
+export interface ProgressExerciseComparison {
+  exerciseId: string;
+  exerciseName: string;
+  sessions: number;
+  currentBestE1rm: number;
+  previousBestE1rm: number | null;
+  deltaE1rm: number | null;
+}
+
+export interface ProgressAnalyticsData {
+  rangeDays: 28 | 84;
+  current: ProgressPeriodStats;
+  previous: ProgressPeriodStats;
+  weekly: ProgressWeekStats[];
+  exercises: ProgressExerciseComparison[];
+}
+
+interface ProgressAnalyticsRow {
+  workout_id: string;
+  started_at: string;
+  exercise_id: string;
+  exercise_name: string;
+  volume: number;
+  sets: number;
+  best_e1rm: number;
+}
+
+export async function getProgressAnalytics(
+  db: SqlDb,
+  userId: string,
+  rangeDays: 28 | 84,
+  asOf = nowIso(),
+): Promise<ProgressAnalyticsData> {
+  const dayMs = 24 * 60 * 60 * 1000;
+  const weekMs = 7 * dayMs;
+  const endMs = Date.parse(asOf);
+  if (!Number.isFinite(endMs)) throw new Error('Invalid Progress analytics date.');
+  const currentStartMs = endMs - rangeDays * dayMs;
+  const previousStartMs = currentStartMs - rangeDays * dayMs;
+
+  const rows = await db.getAllAsync<ProgressAnalyticsRow>(
+    `select w.id as workout_id, w.started_at, s.exercise_id,
+            coalesce(e.name, s.exercise_id) as exercise_name,
+            coalesce(sum(coalesce(s.weight, 0) * coalesce(s.reps, 0)), 0) as volume,
+            count(s.id) as sets,
+            max(coalesce(s.weight, 0) * (1 + coalesce(s.reps, 0) / 30.0)) as best_e1rm
+       from workouts w
+       join sets s on s.workout_id = w.id
+       left join exercises e on e.id = s.exercise_id and e.deleted_at is null
+      where w.user_id = ?
+        and w.ended_at is not null
+        and w.deleted_at is null
+        and s.deleted_at is null
+        and s.is_warmup = 0
+        and w.started_at >= ?
+        and w.started_at < ?
+      group by w.id, w.started_at, s.exercise_id, e.name
+      order by w.started_at`,
+    userId,
+    new Date(previousStartMs).toISOString(),
+    new Date(endMs).toISOString(),
+  );
+
+  const periodStats = (periodRows: ProgressAnalyticsRow[]): ProgressPeriodStats => ({
+    volume: periodRows.reduce((sum, row) => sum + row.volume, 0),
+    sessions: new Set(periodRows.map((row) => row.workout_id)).size,
+    sets: periodRows.reduce((sum, row) => sum + row.sets, 0),
+  });
+  const currentRows = rows.filter((row) => Date.parse(row.started_at) >= currentStartMs);
+  const previousRows = rows.filter((row) => Date.parse(row.started_at) < currentStartMs);
+
+  const weekCount = rangeDays / 7;
+  const weeklyAccumulators = Array.from({ length: weekCount }, (_, index) => ({
+    startedAt: new Date(currentStartMs + index * weekMs).toISOString(),
+    volume: 0,
+    sets: 0,
+    workoutIds: new Set<string>(),
+  }));
+  for (const row of currentRows) {
+    const bucketIndex = Math.min(weekCount - 1, Math.floor((Date.parse(row.started_at) - currentStartMs) / weekMs));
+    const bucket = weeklyAccumulators[bucketIndex];
+    if (!bucket) continue;
+    bucket.volume += row.volume;
+    bucket.sets += row.sets;
+    bucket.workoutIds.add(row.workout_id);
+  }
+
+  const exerciseAccumulators = new Map<string, {
+    exerciseName: string;
+    currentWorkoutIds: Set<string>;
+    currentBestE1rm: number;
+    previousBestE1rm: number;
+  }>();
+  for (const row of rows) {
+    if (row.best_e1rm <= 0) continue;
+    const exercise = exerciseAccumulators.get(row.exercise_id) ?? {
+      exerciseName: row.exercise_name,
+      currentWorkoutIds: new Set<string>(),
+      currentBestE1rm: 0,
+      previousBestE1rm: 0,
+    };
+    if (Date.parse(row.started_at) >= currentStartMs) {
+      exercise.currentWorkoutIds.add(row.workout_id);
+      exercise.currentBestE1rm = Math.max(exercise.currentBestE1rm, row.best_e1rm);
+    } else {
+      exercise.previousBestE1rm = Math.max(exercise.previousBestE1rm, row.best_e1rm);
+    }
+    exerciseAccumulators.set(row.exercise_id, exercise);
+  }
+
+  const exercises = Array.from(exerciseAccumulators.entries())
+    .filter(([, exercise]) => exercise.currentWorkoutIds.size > 0)
+    .map(([exerciseId, exercise]): ProgressExerciseComparison => {
+      const previousBestE1rm = exercise.previousBestE1rm > 0 ? exercise.previousBestE1rm : null;
+      return {
+        exerciseId,
+        exerciseName: exercise.exerciseName,
+        sessions: exercise.currentWorkoutIds.size,
+        currentBestE1rm: exercise.currentBestE1rm,
+        previousBestE1rm,
+        deltaE1rm: previousBestE1rm === null ? null : exercise.currentBestE1rm - previousBestE1rm,
+      };
+    })
+    .sort((a, b) =>
+      b.sessions - a.sessions
+      || Math.abs(b.deltaE1rm ?? 0) - Math.abs(a.deltaE1rm ?? 0)
+      || a.exerciseName.localeCompare(b.exerciseName));
+
+  return {
+    rangeDays,
+    current: periodStats(currentRows),
+    previous: periodStats(previousRows),
+    weekly: weeklyAccumulators.map((week) => ({
+      startedAt: week.startedAt,
+      volume: week.volume,
+      sessions: week.workoutIds.size,
+      sets: week.sets,
+    })),
+    exercises,
+  };
 }
 
 // ---------------------------------------------------------------------------

@@ -69,12 +69,13 @@ The current project includes:
 
 - onboarding that generates an initial plan through the progression engine
 - Today, Active Workout, and Workout Summary flows backed by local data
-- durable set logging, previous-session values, rest timing, warm-ups, movement skipping, and queue reordering
+- durable set logging, previous-session values, numeric workout inputs, per-program between-set rest timing, warm-ups, movement skipping, early exercise completion, and queue reordering
 - Exercise Library, custom movements, exercise detail, history, and PR trends
 - Program Library with scheduling, editing, movement management, and reordering
 - Workout Plan Library with goals, notes, active state, and Program management
-- Progress analytics, workout session drilldowns with set-level detail, and a local-only progress-photo timeline
+- Progress analytics with selectable 4/12-week period comparisons, exercise-level e1RM changes, workout session drilldowns with set-level detail, and a local-only progress-photo timeline
 - readiness calculated from HealthKit and subjective signals
+- a daily check-in for energy, mood, sleep quality, soreness, and optional body weight that feeds Today and Weekly Review
 - a grounded local Coach experience and Weekly Review
 - profile, light/dark appearance, privacy, deferred anonymous auth, and Apple upgrade scaffolding
 - SQLite storage, offline sync, Supabase schema/RLS, progression engine, and shared design tokens
@@ -84,9 +85,9 @@ The current project includes:
 Potential future directions include:
 
 - production AI Coach responses, tools, and safety guardrails
-- deeper weekly/monthly Progress breakdowns and exercise comparisons
+- deeper recovery-aware Progress insights and body-metric correlations
 - RevenueCat subscriptions and paywall
-- quick health or nutrition logging where it strengthens readiness and review
+- nutrition quick logging only where it strengthens readiness or review
 - Strong and Hevy importers
 - exercise media and video library
 - AI-generated weekly review

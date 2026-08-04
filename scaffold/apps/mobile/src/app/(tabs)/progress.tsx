@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
 import { useApp } from '@/AppContext';
 import { Card, Eyebrow, ScreenScroll, Teaser } from '@/components/ui';
+import { getProgressAnalytics, type ProgressAnalyticsData } from '@/db/queries';
 import { getProgressPhotoStats, type ProgressPhotoStats } from '@/photos/progressPhotos';
 import { borderWidth, radius, space, useTheme } from '@/theme';
 import { displayWorkoutName } from '@/workoutNames';
@@ -35,6 +36,8 @@ interface ProgressData {
   bestLift: BestLiftRow | null;
   photoStats: ProgressPhotoStats;
 }
+
+type RangeWeeks = 4 | 12;
 
 const PR_LABEL: Record<string, string> = {
   weight: 'Heaviest set',
@@ -70,6 +73,38 @@ function Metric({ label, value, accent }: { label: string; value: string; accent
       </Text>
     </View>
   );
+}
+
+function RangeButton({ weeks, selected, onPress }: { weeks: RangeWeeks; selected: boolean; onPress: () => void }) {
+  const t = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Show ${weeks} weeks`}
+      accessibilityState={{ selected }}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        minWidth: 48,
+        minHeight: 44,
+        borderRadius: radius.control,
+        borderWidth: borderWidth.hairline,
+        borderColor: selected ? t.colors.actionInk : t.colors.borderHairline,
+        backgroundColor: selected ? t.colors.actionInk : t.colors.bgSurface2,
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity: pressed ? 0.62 : 1,
+      })}
+    >
+      <Text style={t.text('dataS', selected ? 'actionOnInk' : 'textMuted')}>{weeks}W</Text>
+    </Pressable>
+  );
+}
+
+function comparisonLabel(current: number, previous: number) {
+  if (current === 0 && previous === 0) return 'No logged volume';
+  if (previous === 0) return 'New baseline';
+  const change = Math.round(((current - previous) / previous) * 100);
+  return `${change >= 0 ? '+' : ''}${change}% vs prior`;
 }
 
 function titleCase(value: string) {
@@ -132,6 +167,8 @@ export default function ProgressScreen() {
     bestLift: null,
     photoStats: { count: 0, firstTakenAt: null, latest: null },
   });
+  const [rangeWeeks, setRangeWeeks] = useState<RangeWeeks>(4);
+  const [analytics, setAnalytics] = useState<ProgressAnalyticsData | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -172,22 +209,30 @@ export default function ProgressScreen() {
           userId,
         );
         const photoStats = await getProgressPhotoStats(db, userId);
+        const nextAnalytics = await getProgressAnalytics(db, userId, rangeWeeks === 4 ? 28 : 84);
         const uniquePrs = prs.filter(
           (pr, index, all) => all.findIndex((x) => `${x.exercise_id}:${x.type}` === `${pr.exercise_id}:${pr.type}`) === index,
         );
-        if (live) setData({ workouts, prs: uniquePrs, bestLift, photoStats });
+        if (live) {
+          setData({ workouts, prs: uniquePrs, bestLift, photoStats });
+          setAnalytics(nextAnalytics);
+        }
       })();
       return () => {
         live = false;
       };
-    }, [db, userId]),
+    }, [db, userId, rangeWeeks]),
   );
 
   const last7Cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
   const thisWeek = data.workouts.filter((w) => Date.parse(w.started_at) >= last7Cutoff);
   const weekVolume = thisWeek.reduce((sum, w) => sum + w.volume, 0);
-  const chart = data.workouts.slice().reverse();
-  const maxVolume = Math.max(1, ...chart.map((w) => w.volume));
+  const weekly = analytics?.weekly ?? [];
+  const maxWeeklyVolume = Math.max(1, ...weekly.map((week) => week.volume));
+  const rangeVolume = analytics?.current.volume ?? 0;
+  const rangeSessions = analytics?.current.sessions ?? 0;
+  const rangeSets = analytics?.current.sets ?? 0;
+  const previousVolume = analytics?.previous.volume ?? 0;
 
   return (
     <ScreenScroll>
@@ -204,17 +249,68 @@ export default function ProgressScreen() {
       <PhotoStatusCard stats={data.photoStats} />
 
       <Card>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: space[3], alignItems: 'center' }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Eyebrow>Training trend</Eyebrow>
+            <Text style={t.text('displayS')}>Last {rangeWeeks} weeks</Text>
+          </View>
+          <View style={{ flexDirection: 'row', gap: space[2] }}>
+            <RangeButton weeks={4} selected={rangeWeeks === 4} onPress={() => setRangeWeeks(4)} />
+            <RangeButton weeks={12} selected={rangeWeeks === 12} onPress={() => setRangeWeeks(12)} />
+          </View>
+        </View>
+
+        <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: space[3], marginTop: space[4] }}>
+          <Text numberOfLines={1} adjustsFontSizeToFit style={t.text('heroNumL')}>{compact(rangeVolume)} lb</Text>
+          <Text style={t.text('dataS', 'textMuted')}>{comparisonLabel(rangeVolume, previousVolume)}</Text>
+        </View>
+        <Text style={t.text('bodyS', 'textMuted')}>
+          {rangeSessions} session{rangeSessions === 1 ? '' : 's'} · {rangeSets} working set{rangeSets === 1 ? '' : 's'}
+        </Text>
+
+        <View style={{ height: 132, flexDirection: 'row', alignItems: 'flex-end', gap: rangeWeeks === 4 ? space[3] : space[1], marginTop: space[4] }}>
+          {weekly.length === 0 ? (
+            <Text style={t.text('bodyM', 'textMuted')}>Loading training history…</Text>
+          ) : (
+            weekly.map((week, index) => {
+              const showLabel = rangeWeeks === 4 || index === 0 || index === weekly.length - 1;
+              return (
+                <View
+                  key={week.startedAt}
+                  accessible
+                  accessibilityLabel={`Week of ${dayLabel(week.startedAt)}: ${Math.round(week.volume)} pounds, ${week.sessions} sessions`}
+                  style={{ flex: 1, alignItems: 'center', gap: space[2] }}
+                >
+                  <View
+                    style={{
+                      width: '100%',
+                      minHeight: 6,
+                      height: Math.max(6, (week.volume / maxWeeklyVolume) * 94),
+                      borderRadius: 5,
+                      backgroundColor: t.colors.dataBlue,
+                      opacity: week.volume === 0 ? 0.18 : 0.45 + (week.volume / maxWeeklyVolume) * 0.55,
+                    }}
+                  />
+                  <Text numberOfLines={1} adjustsFontSizeToFit style={[t.text('dataS', 'textFaint'), { fontSize: 10 }]}>
+                    {showLabel ? dayLabel(week.startedAt) : ''}
+                  </Text>
+                </View>
+              );
+            })
+          )}
+        </View>
+      </Card>
+
+      <Card>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: space[3], alignItems: 'flex-start' }}>
-          <View style={{ flex: 1 }}>
-            <Eyebrow>Volume trend</Eyebrow>
-            <Text style={t.text('displayS')}>Last {chart.length || 0} sessions</Text>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Eyebrow>Exercise comparison</Eyebrow>
+            <Text style={t.text('displayS')}>Against prior {rangeWeeks} weeks</Text>
           </View>
           {data.bestLift && (
-            <View style={{ alignItems: 'flex-end', maxWidth: 130 }}>
+            <View style={{ alignItems: 'flex-end', maxWidth: 118 }}>
               <Text style={t.text('labelCaps', 'textMuted')}>Best est.</Text>
-              <Text numberOfLines={1} adjustsFontSizeToFit style={t.text('dataM')}>
-                {Math.round(data.bestLift.e1rm)} lb
-              </Text>
+              <Text style={t.text('dataM')}>{Math.round(data.bestLift.e1rm)} lb</Text>
               <Text numberOfLines={1} style={t.text('bodyS', 'textMuted')}>
                 {exerciseCatalog[data.bestLift.exercise_id]?.name ?? data.bestLift.exercise_id}
               </Text>
@@ -222,29 +318,46 @@ export default function ProgressScreen() {
           )}
         </View>
 
-        <View style={{ height: 138, flexDirection: 'row', alignItems: 'flex-end', gap: space[2], marginTop: space[5] }}>
-          {chart.length === 0 ? (
-            <Text style={t.text('bodyM', 'textMuted')}>Finish a workout to start the trend.</Text>
-          ) : (
-            chart.map((w) => (
-              <View key={w.id} style={{ flex: 1, alignItems: 'center', gap: space[2] }}>
-                <View
-                  style={{
-                    width: '100%',
-                    minHeight: 6,
-                    height: Math.max(6, (w.volume / maxVolume) * 104),
-                    borderRadius: 5,
-                    backgroundColor: t.colors.dataBlue,
-                    opacity: 0.45 + (w.volume / maxVolume) * 0.55,
-                  }}
-                />
-                <Text numberOfLines={1} adjustsFontSizeToFit style={[t.text('dataS', 'textFaint'), { fontSize: 10 }]}>
-                  {dayLabel(w.started_at)}
+        {analytics && analytics.exercises.length === 0 && (
+          <Text style={[t.text('bodyM', 'textMuted'), { marginTop: space[3] }]}>
+            Repeat a loaded movement in this range to start comparing strength.
+          </Text>
+        )}
+        {analytics?.exercises.slice(0, 4).map((exercise, index) => {
+          const delta = exercise.deltaE1rm;
+          const deltaLabel = delta === null ? 'New baseline' : `${delta >= 0 ? '+' : ''}${Math.round(delta)} lb`;
+          return (
+            <Pressable
+              key={exercise.exerciseId}
+              accessibilityRole="button"
+              accessibilityLabel={`Open ${exercise.exerciseName}, estimated one rep max ${Math.round(exercise.currentBestE1rm)} pounds, ${deltaLabel}`}
+              onPress={() => router.push(`/exercise/${exercise.exerciseId}`)}
+              style={({ pressed }) => ({
+                minHeight: 64,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: space[3],
+                borderTopWidth: index === 0 ? 0 : borderWidth.hairline,
+                borderTopColor: t.colors.borderHairline,
+                opacity: pressed ? 0.62 : 1,
+              })}
+            >
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text numberOfLines={1} style={t.text('bodyM')}>{exercise.exerciseName}</Text>
+                <Text style={t.text('bodyS', 'textMuted')}>
+                  {Math.round(exercise.currentBestE1rm)} lb est. · {exercise.sessions} session{exercise.sessions === 1 ? '' : 's'}
                 </Text>
               </View>
-            ))
-          )}
-        </View>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={t.text('dataS', delta !== null && delta < 0 ? 'dataCoral' : 'dataBlue')}>{deltaLabel}</Text>
+                <Text style={t.text('bodyS', 'textFaint')}>
+                  {exercise.previousBestE1rm === null ? 'No prior range' : `vs ${Math.round(exercise.previousBestE1rm)} lb`}
+                </Text>
+              </View>
+              <Text style={t.text('bodyM', 'textFaint')}>›</Text>
+            </Pressable>
+          );
+        })}
       </Card>
 
       <Card>

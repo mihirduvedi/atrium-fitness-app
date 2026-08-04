@@ -17,6 +17,8 @@ import {
   getInProgressWorkout,
   getInProgressWorkoutOverview,
   getNextProgramDay,
+  getProgressAnalytics,
+  getProgramDayContext,
   getProgramOverview,
   getPreviousSession,
   getWorkoutDraft,
@@ -284,6 +286,8 @@ describe('Stage 5 data layer: Today plans from real engine + SQLite state', () =
       repeatEvery: 2,
       repeatUnit: 'week',
       weekdays: [1, 3],
+      setRestSeconds: 75,
+      exerciseRestSeconds: 150,
     });
 
     library = await listProgramLibrary(db, USER);
@@ -295,6 +299,18 @@ describe('Stage 5 data layer: Today plans from real engine + SQLite state', () =
       repeatEvery: 2,
       repeatUnit: 'week',
       weekdays: [1, 3],
+      setRestSeconds: 75,
+      exerciseRestSeconds: 150,
+    });
+
+    expect(await getProgramDayContext(db, first.programDayId)).toMatchObject({
+      setRestSeconds: 75,
+      exerciseRestSeconds: 150,
+    });
+    expect(await getNextProgramDay(db, first.workoutPlanId)).toMatchObject({
+      dayId: first.programDayId,
+      setRestSeconds: 75,
+      exerciseRestSeconds: 150,
     });
 
     await setProgramDayActive(db, USER, first.programDayId, false);
@@ -312,6 +328,8 @@ describe('Stage 5 data layer: Today plans from real engine + SQLite state', () =
       repeatEvery: 1,
       repeatUnit: 'week',
       weekdays: [5],
+      setRestSeconds: 60,
+      exerciseRestSeconds: 120,
     }, id);
     library = await listProgramLibrary(db, USER);
     expect(library.find((item) => item.programDayId === customProgramId)).toMatchObject({
@@ -319,11 +337,30 @@ describe('Stage 5 data layer: Today plans from real engine + SQLite state', () =
       active: false,
       category: 'arms',
       weekdays: [5],
+      setRestSeconds: 60,
+      exerciseRestSeconds: 120,
     });
 
     await addMovementToProgramDay(db, customProgramId, 'db_curl', { sets: 3, reps: 12 }, id);
     await setProgramDayActive(db, USER, customProgramId, true);
     expect((await getProgramOverview(db, USER))!.days.some((day) => day.dayId === customProgramId)).toBe(true);
+  });
+
+  it('preserves inferred program categories when toggling active state', async () => {
+    await seedDemoProgram(db, USER, id);
+    const before = await listProgramLibrary(db, USER);
+    const categories = new Map(before.map((program) => [program.programDayId, program.category]));
+
+    for (const program of before) {
+      await setProgramDayActive(db, USER, program.programDayId, false);
+      await setProgramDayActive(db, USER, program.programDayId, true);
+    }
+
+    const after = await listProgramLibrary(db, USER);
+    expect(after.map((program) => program.category)).toEqual(
+      after.map((program) => categories.get(program.programDayId)),
+    );
+    expect(after.map((program) => program.category)).toEqual(['upper', 'lower', 'upper', 'lower']);
   });
 
   it('lists, renames, toggles, creates, and edits workout plan templates', async () => {
@@ -366,7 +403,7 @@ describe('Stage 5 data layer: Today plans from real engine + SQLite state', () =
     expect(plans.find((plan) => plan.planId !== newPlanId)).toMatchObject({ active: false });
     expect((await getActiveProgram(db, USER))!.id).toBe(newPlanId);
     expect(newPlan.programs).toHaveLength(2);
-    expect(newPlan.programs[0]).toMatchObject({ name: sourceProgram.name });
+    expect(newPlan.programs[0]).toMatchObject({ name: sourceProgram.name, category: sourceProgram.category });
     expect(newPlan.programs.map((program) => program.dayIndex)).toEqual([0, 1]);
 
     expect(await removeProgramFromWorkoutPlan(db, USER, copiedProgramId!, id)).toBe(true);
@@ -558,6 +595,33 @@ describe('Stage 5 data layer: Active Workout', () => {
     expect(draft.setUi[key]).toMatchObject({ weight: '123', reps: '4', done: false });
   });
 
+  it('preserves an exercise-level finish marker in the workout draft', async () => {
+    await seedDemoProgram(db, USER, id);
+    const program = (await getActiveProgram(db, USER))!;
+    const day = (await getNextProgramDay(db, program.id))!;
+    const plan = await planSession(db, USER, day, id);
+    const workoutId = await startWorkout(db, USER, day.dayId, id);
+    const first = plan.prescriptions[0]!;
+    const finishedKey = `__workout_queue_finished__:${first.slotId}`;
+
+    await saveWorkoutDraft(db, {
+      workoutId,
+      userId: USER,
+      programDayId: day.dayId,
+      day,
+      plan,
+      setUi: { [finishedKey]: { weight: '', reps: '', done: true } },
+      activeIndex: 1,
+      restRemainingS: null,
+    });
+
+    expect((await getWorkoutDraft(db, workoutId))!.setUi[finishedKey]).toEqual({
+      weight: '',
+      reps: '',
+      done: true,
+    });
+  });
+
   it('clears active drafts when finishing or discarding', async () => {
     await seedDemoProgram(db, USER, id);
     const program = (await getActiveProgram(db, USER))!;
@@ -731,5 +795,37 @@ describe('Stage 5 data layer: Summary', () => {
     const saved = await db.getFirstAsync<{ n: number }>('select count(*) as n from personal_records');
     expect(saved!.n).toBe(prs.length);
     expect((await getWorkoutSummary(db, workoutId))!.records).toHaveLength(prs.length);
+  });
+});
+
+describe('Stage 5 data layer: Progress analytics', () => {
+  it('compares equal ranges and groups exercise changes into weekly buckets', async () => {
+    await seedDemoProgram(db, USER, id);
+    const dates = [
+      '2026-04-07',
+      '2026-04-14',
+      '2026-04-21',
+      '2026-04-28',
+      '2026-05-07',
+      '2026-05-14',
+      '2026-05-21',
+      '2026-05-28',
+    ];
+    for (const date of dates) {
+      const workoutId = await performSession(USER);
+      await db.runAsync('update workouts set started_at = ? where id = ?', `${date}T10:00:00.000Z`, workoutId);
+    }
+
+    const analytics = await getProgressAnalytics(db, USER, 28, '2026-06-01T00:00:00.000Z');
+    expect(analytics.current.sessions).toBe(4);
+    expect(analytics.previous.sessions).toBe(4);
+    expect(analytics.current.volume).toBeGreaterThan(analytics.previous.volume);
+    expect(analytics.weekly.map((week) => week.sessions)).toEqual([1, 1, 1, 1]);
+    expect(analytics.weekly.every((week) => week.sets > 0 && week.volume > 0)).toBe(true);
+
+    const bench = analytics.exercises.find((exercise) => exercise.exerciseId === 'bb_bench');
+    expect(bench).toMatchObject({ exerciseName: 'Bench Press', sessions: 1 });
+    expect(bench!.previousBestE1rm).not.toBeNull();
+    expect(bench!.deltaE1rm).toBeCloseTo(bench!.currentBestE1rm - bench!.previousBestE1rm!);
   });
 });

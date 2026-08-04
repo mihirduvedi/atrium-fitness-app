@@ -26,7 +26,18 @@ import {
   unlogSet,
 } from '@/db/queries';
 import { borderWidth, radius, space, useTheme } from '@/theme';
+import { sanitizeDecimalInput, sanitizeWholeNumberInput } from '@/numericInput';
+import {
+  completedWorkoutQueuePrefixLength,
+  constrainWorkoutQueueTarget,
+  isWorkoutQueuePrescriptionDone,
+  moveWorkoutQueuePrescription,
+  normalizeWorkoutQueue,
+  postponeActiveWorkoutQueuePrescription,
+  workoutQueueFinishedKey,
+} from '@/workoutQueue';
 import { displayWorkoutName } from '@/workoutNames';
+import { restSecondsAfterLoggedSet } from '@/workoutRest';
 
 interface SetUiState {
   weight: string;
@@ -81,10 +92,6 @@ function shiftedRowOffset(index: number, startIndex: number, targetIndex: number
   return 0;
 }
 
-function activeIndexAfterQueueReorder(current: number, total: number) {
-  return Math.max(0, Math.min(current, total - 1));
-}
-
 function initialSetUiForPlan(plan: SessionPlan): Record<string, SetUiState> {
   const ui: Record<string, SetUiState> = {};
   for (const prescription of plan.prescriptions) {
@@ -108,14 +115,15 @@ function animateReorderLayout() {
   });
 }
 
-function DragHandle({ dragging }: { dragging: boolean }) {
+function DragHandle({ dragging, disabled = false }: { dragging: boolean; disabled?: boolean }) {
   const t = useTheme();
 
   return (
     <View
-      accessibilityLabel="Reorder movement"
+      accessibilityLabel={disabled ? 'Completed movement locked in place' : 'Reorder movement'}
       accessibilityRole="adjustable"
-      accessibilityHint="Drag up or down to reorder."
+      accessibilityHint={disabled ? 'Completed movements cannot be reordered.' : 'Drag up or down to reorder.'}
+      accessibilityState={{ disabled }}
       style={{
         width: 54,
         height: 54,
@@ -124,6 +132,7 @@ function DragHandle({ dragging }: { dragging: boolean }) {
         gap: 4,
         borderRadius: radius.control,
         backgroundColor: dragging ? t.colors.bgSurface2 : 'transparent',
+        opacity: disabled ? 0.3 : 1,
       }}
     >
       {[0, 1, 2].map((line) => (
@@ -217,6 +226,7 @@ function TimelineRow({
   onDragEnd,
   exerciseName,
   draggingPreview,
+  reorderDisabled,
   shiftY,
 }: {
   prescription: SessionPlan['prescriptions'][number];
@@ -230,10 +240,11 @@ function TimelineRow({
   onDragEnd: (slotId: string, deltaY: number | null) => void;
   exerciseName: string;
   draggingPreview: boolean;
+  reorderDisabled: boolean;
   shiftY: number;
 }) {
   const t = useTheme();
-  const status = active ? 'Now' : done ? 'Done' : 'Queued';
+  const status = done ? 'Done' : active ? 'Now' : 'Queued';
   const slotIdRef = useRef(prescription.slotId);
   const indexRef = useRef(index);
   const dragStartIndex = useRef<number | null>(null);
@@ -241,6 +252,7 @@ function TimelineRow({
   const onDragStartRef = useRef(onDragStart);
   const onDragMoveRef = useRef(onDragMove);
   const onDragEndRef = useRef(onDragEnd);
+  const reorderDisabledRef = useRef(reorderDisabled);
   const panResponder = useRef<ReturnType<typeof PanResponder.create> | null>(null);
   const [dragging, setDragging] = useState(false);
   const rowDragging = dragging || draggingPreview;
@@ -251,6 +263,7 @@ function TimelineRow({
   onDragStartRef.current = onDragStart;
   onDragMoveRef.current = onDragMove;
   onDragEndRef.current = onDragEnd;
+  reorderDisabledRef.current = reorderDisabled;
 
   useEffect(() => {
     Animated.spring(animatedShiftY, {
@@ -263,6 +276,7 @@ function TimelineRow({
   }, [animatedShiftY, shiftY]);
 
   const startDrag = () => {
+    if (reorderDisabledRef.current) return;
     if (dragStartIndex.current !== null) return;
     dragStartIndex.current = indexRef.current;
     lastDragDeltaY.current = 0;
@@ -271,6 +285,7 @@ function TimelineRow({
   };
 
   const updateDrag = (deltaY: number) => {
+    if (reorderDisabledRef.current) return;
     if (dragStartIndex.current === null) startDrag();
     lastDragDeltaY.current = deltaY;
     onDragMoveRef.current(slotIdRef.current, deltaY);
@@ -313,10 +328,10 @@ function TimelineRow({
         />
         <View
           style={{
-            width: active ? 13 : 9,
-            height: active ? 13 : 9,
-            borderRadius: active ? 7 : 5,
-            backgroundColor: active ? t.colors.actionInk : done ? t.colors.dataBlue : t.colors.bgSurface2,
+            width: active && !done ? 13 : 9,
+            height: active && !done ? 13 : 9,
+            borderRadius: active && !done ? 7 : 5,
+            backgroundColor: done ? t.colors.dataBlue : active ? t.colors.actionInk : t.colors.bgSurface2,
             borderWidth: active || done ? 0 : borderWidth.hairline,
             borderColor: t.colors.borderStrong,
           }}
@@ -373,9 +388,13 @@ function TimelineRow({
         }}
       >
         {renderRowBody(
-          <View {...panResponder.current.panHandlers}>
-            <DragHandle dragging={rowDragging} />
-          </View>,
+          reorderDisabled ? (
+            <DragHandle dragging={false} disabled />
+          ) : (
+            <View {...panResponder.current.panHandlers}>
+              <DragHandle dragging={rowDragging} />
+            </View>
+          ),
           rowDragging,
         )}
       </View>
@@ -397,7 +416,7 @@ function TimelineFloatingRow({
   top: number;
 }) {
   const t = useTheme();
-  const status = active ? 'Now' : done ? 'Done' : 'Queued';
+  const status = done ? 'Done' : active ? 'Now' : 'Queued';
   return (
     <View
       pointerEvents="none"
@@ -422,10 +441,10 @@ function TimelineFloatingRow({
       <View style={{ width: 20, alignItems: 'center', justifyContent: 'center', alignSelf: 'stretch' }}>
         <View
           style={{
-            width: active ? 13 : 9,
-            height: active ? 13 : 9,
-            borderRadius: active ? 7 : 5,
-            backgroundColor: active ? t.colors.actionInk : done ? t.colors.dataBlue : t.colors.bgSurface2,
+            width: active && !done ? 13 : 9,
+            height: active && !done ? 13 : 9,
+            borderRadius: active && !done ? 7 : 5,
+            backgroundColor: done ? t.colors.dataBlue : active ? t.colors.actionInk : t.colors.bgSurface2,
             borderWidth: active || done ? 0 : borderWidth.hairline,
             borderColor: t.colors.borderStrong,
           }}
@@ -487,19 +506,23 @@ export default function WorkoutScreen() {
     };
 
     const applyDraft = async (draft: WorkoutDraftData, names: Record<string, string>) => {
-      const g = await loadGhostMap(draft.plan, draft.workoutId);
+      const normalizedQueue = normalizeWorkoutQueue(draft.plan.prescriptions, draft.setUi);
+      const normalizedPlan = normalizedQueue.moved
+        ? { ...draft.plan, prescriptions: normalizedQueue.prescriptions }
+        : draft.plan;
+      const g = await loadGhostMap(normalizedPlan, draft.workoutId);
       if (!live) return;
       setDay(draft.day);
-      setPlan(draft.plan);
-      planRef.current = draft.plan;
+      setPlan(normalizedPlan);
+      planRef.current = normalizedPlan;
       setWorkoutId(draft.workoutId);
       setWorkoutStartedAt(draft.startedAt);
       setWorkoutCustomName(draft.customName);
       setGhosts(g);
       setExerciseNames(names);
       setSetUi(draft.setUi);
-      setActiveIndex(draft.activeIndex);
-      activeIndexRef.current = draft.activeIndex;
+      setActiveIndex(normalizedQueue.activeIndex);
+      activeIndexRef.current = normalizedQueue.activeIndex;
       setRest(draft.restRemainingS);
       draftReady.current = true;
     };
@@ -638,7 +661,7 @@ export default function WorkoutScreen() {
   }, [activeIndex, day, db, plan, rest, setUi, userId, workoutId]);
 
   const startRest = (seconds: number) => {
-    setRest(seconds);
+    setRest(seconds > 0 ? seconds : null);
   };
 
   useEffect(() => {
@@ -692,7 +715,7 @@ export default function WorkoutScreen() {
   }, [clearPendingWorkoutMovement, day, pendingWorkoutMovement, plan]);
 
   const isPrescriptionDone = (presc: SessionPlan['prescriptions'][number], uiState = setUi) =>
-    presc.sets.every((set) => uiState[`${presc.slotId}:${set.setIndex}`]?.done);
+    isWorkoutQueuePrescriptionDone(presc, uiState);
 
   const advanceFrom = (index: number) => {
     setActiveIndex((current) => {
@@ -703,29 +726,82 @@ export default function WorkoutScreen() {
 
   const skipMovement = () => {
     setRest(null);
-    setActiveIndex((current) => Math.min(current + 1, (plan?.prescriptions.length ?? 1) - 1));
+    const currentPlan = planRef.current;
+    if (!currentPlan) return;
+    const nextQueue = postponeActiveWorkoutQueuePrescription(
+      currentPlan.prescriptions,
+      setUi,
+      activeIndexRef.current,
+    );
+    if (!nextQueue.moved) return;
+    const nextPlan = { ...currentPlan, prescriptions: nextQueue.prescriptions };
+    planRef.current = nextPlan;
+    activeIndexRef.current = nextQueue.activeIndex;
+    animateReorderLayout();
+    setPlan(nextPlan);
+    setActiveIndex(nextQueue.activeIndex);
+  };
+
+  const finishExercise = () => {
+    const currentPlan = planRef.current;
+    const currentIndex = activeIndexRef.current;
+    const current = currentPlan?.prescriptions[currentIndex];
+    if (!currentPlan || !current || isPrescriptionDone(current)) return;
+
+    const nextSetUi = {
+      ...setUi,
+      [workoutQueueFinishedKey(current.slotId)]: { weight: '', reps: '', done: true },
+    };
+    const hasNextExercise = currentIndex < currentPlan.prescriptions.length - 1;
+    setSetUi(nextSetUi);
+    if (hasNextExercise) {
+      const nextIndex = currentIndex + 1;
+      activeIndexRef.current = nextIndex;
+      setActiveIndex(nextIndex);
+    }
+    setRest(null);
   };
 
   const movePrescription = (from: number, to: number) => {
     const currentPlan = planRef.current;
     if (!currentPlan || from === to) return;
-    const target = Math.max(0, Math.min(to, currentPlan.prescriptions.length - 1));
-    if (from === target) return;
-    const nextPrescriptions = [...currentPlan.prescriptions];
-    const [moved] = nextPrescriptions.splice(from, 1);
-    if (!moved) return;
-    nextPrescriptions.splice(target, 0, moved);
     const currentActiveIndex = activeIndexRef.current;
-    const nextActiveIndex = activeIndexAfterQueueReorder(currentActiveIndex, nextPrescriptions.length);
+    const nextQueue = moveWorkoutQueuePrescription(
+      currentPlan.prescriptions,
+      setUi,
+      currentActiveIndex,
+      from,
+      to,
+    );
+    if (!nextQueue.moved) return;
     const currentActiveSlotId = currentPlan.prescriptions[currentActiveIndex]?.slotId;
-    const nextActiveSlotId = nextPrescriptions[nextActiveIndex]?.slotId;
-    const nextPlan = { ...currentPlan, prescriptions: nextPrescriptions };
+    const nextActiveSlotId = nextQueue.prescriptions[nextQueue.activeIndex]?.slotId;
+    const nextPlan = { ...currentPlan, prescriptions: nextQueue.prescriptions };
     planRef.current = nextPlan;
-    activeIndexRef.current = nextActiveIndex;
+    activeIndexRef.current = nextQueue.activeIndex;
     animateReorderLayout();
     setPlan(nextPlan);
-    setActiveIndex(nextActiveIndex);
+    setActiveIndex(nextQueue.activeIndex);
     if (currentActiveSlotId !== nextActiveSlotId) setRest(null);
+  };
+
+  const selectTimelinePrescription = (index: number) => {
+    const currentPlan = planRef.current;
+    const selectedPrescription = currentPlan?.prescriptions[index];
+    if (!currentPlan || !selectedPrescription) return;
+    setRest(null);
+    if (isPrescriptionDone(selectedPrescription)) {
+      setActiveIndex(index);
+      activeIndexRef.current = index;
+      return;
+    }
+    const queueStart = completedWorkoutQueuePrefixLength(currentPlan.prescriptions, setUi);
+    if (index === queueStart) {
+      setActiveIndex(queueStart);
+      activeIndexRef.current = queueStart;
+      return;
+    }
+    movePrescription(index, queueStart);
   };
 
   const updateTimelineDropLine = (index: number | null) => {
@@ -741,7 +817,8 @@ export default function WorkoutScreen() {
     const dragStart = timelineDragStart.current;
     if (dragStart?.slotId !== slotId) return;
     const startIndex = dragStart.index;
-    const target = targetIndexForDrag(startIndex, deltaY, currentPlan.prescriptions.length, TIMELINE_ROW_HEIGHT);
+    const rawTarget = targetIndexForDrag(startIndex, deltaY, currentPlan.prescriptions.length, TIMELINE_ROW_HEIGHT);
+    const target = constrainWorkoutQueueTarget(currentPlan.prescriptions, setUi, startIndex, rawTarget);
     setTimelineDragVisual((current) => (
       current?.slotId === slotId ? { ...current, targetIndex: target, deltaY } : current
     ));
@@ -749,6 +826,8 @@ export default function WorkoutScreen() {
   };
 
   const beginTimelineDrag = (slotId: string, index: number) => {
+    const prescription = planRef.current?.prescriptions[index];
+    if (!prescription || isPrescriptionDone(prescription)) return;
     timelineDragStart.current = { slotId, index };
     lastTimelineDropLine.current = null;
     setTimelineDropLineIndex(null);
@@ -799,7 +878,12 @@ export default function WorkoutScreen() {
     const activeNow = plan?.prescriptions[activeIndex];
     const shouldAdvance = !!activeNow && activeNow.slotId === slotId && isPrescriptionDone(activeNow, nextSetUi);
     setSetUi(nextSetUi);
-    startRest(rest_s);
+    const restSeconds = restSecondsAfterLoggedSet({
+      exerciseDone: shouldAdvance,
+      setRestSeconds: day?.setRestSeconds,
+      fallbackSeconds: rest_s,
+    });
+    setRest(restSeconds && restSeconds > 0 ? restSeconds : null);
     sync?.sync().catch(() => {}); // opportunistic; offline just queues
     if (shouldAdvance) advanceFrom(activeIndex);
   };
@@ -862,6 +946,7 @@ export default function WorkoutScreen() {
 
   const active = plan.prescriptions[activeIndex] ?? plan.prescriptions[0];
   const activeExercise = active ? exerciseCatalog[active.exerciseId] : null;
+  const activeDone = active ? isPrescriptionDone(active) : false;
   const activeExerciseName = active ? exerciseNames[active.exerciseId] ?? activeExercise?.name ?? active.exerciseId : '';
   const activeGhosts = active ? ghosts[active.slotId] ?? [] : [];
   const activeWarmups = active?.sets.filter((s) => s.isWarmup) ?? [];
@@ -950,24 +1035,43 @@ export default function WorkoutScreen() {
                   {activeExerciseName}
                 </Text>
               </Pressable>
-              {activeIndex < plan.prescriptions.length - 1 && (
+            </View>
+            {!activeDone && (
+              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: space[2], marginTop: space[2] }}>
+                {activeIndex < plan.prescriptions.length - 1 && (
+                  <Pressable
+                    onPress={skipMovement}
+                    style={{
+                      minWidth: 62,
+                      height: 32,
+                      borderRadius: radius.control,
+                      borderWidth: borderWidth.hairline,
+                      borderColor: t.colors.borderStrong,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Text style={t.text('bodyS', 'textMuted')}>Skip</Text>
+                  </Pressable>
+                )}
                 <Pressable
-                  onPress={skipMovement}
+                  onPress={finishExercise}
+                  accessibilityRole="button"
+                  accessibilityLabel="Finish exercise"
                   style={{
-                    minWidth: 62,
+                    minWidth: 112,
                     height: 32,
                     borderRadius: radius.control,
                     borderWidth: borderWidth.hairline,
                     borderColor: t.colors.borderStrong,
                     alignItems: 'center',
                     justifyContent: 'center',
-                    marginTop: -4,
                   }}
                 >
-                  <Text style={t.text('bodyS', 'textMuted')}>Skip</Text>
+                  <Text style={t.text('bodyS')}>Finish Exercise</Text>
                 </Pressable>
-              )}
-            </View>
+              </View>
+            )}
             <Text style={[t.text('bodyS', 'textMuted'), { marginTop: 3, marginBottom: 13 }]}>
               {activeGuide}
             </Text>
@@ -1016,9 +1120,12 @@ export default function WorkoutScreen() {
                   </Text>
                   <TextInput
                     value={ui.weight}
-                    editable={!ui.done}
+                    editable={!ui.done && !activeDone}
                     keyboardType="decimal-pad"
-                    onChangeText={(v) => setSetUi((prev) => ({ ...prev, [key]: { ...ui, weight: v } }))}
+                    onChangeText={(value) => setSetUi((prev) => ({
+                      ...prev,
+                      [key]: { ...prev[key]!, weight: sanitizeDecimalInput(value) },
+                    }))}
                     style={[
                       t.text('dataM'),
                       { flex: 1, minWidth: 0, height: 36, textAlign: 'center', backgroundColor: t.colors.bgSurface2, borderRadius: radius.control },
@@ -1026,15 +1133,19 @@ export default function WorkoutScreen() {
                   />
                   <TextInput
                     value={ui.reps}
-                    editable={!ui.done}
+                    editable={!ui.done && !activeDone}
                     keyboardType="number-pad"
-                    onChangeText={(v) => setSetUi((prev) => ({ ...prev, [key]: { ...ui, reps: v } }))}
+                    onChangeText={(value) => setSetUi((prev) => ({
+                      ...prev,
+                      [key]: { ...prev[key]!, reps: sanitizeWholeNumberInput(value) },
+                    }))}
                     style={[
                       t.text('dataM'),
                       { flex: 1, minWidth: 0, height: 36, textAlign: 'center', backgroundColor: t.colors.bgSurface2, borderRadius: radius.control },
                     ]}
                   />
                   <Pressable
+                    disabled={activeDone && !ui.done}
                     onPress={() => toggleSet(active.slotId, active.exerciseId, s.setIndex, active.rest_s, s.isWarmup)}
                     style={{
                       width: 32,
@@ -1072,11 +1183,9 @@ export default function WorkoutScreen() {
                   onDragStart={beginTimelineDrag}
                   onDragMove={previewTimelineDrag}
                   onDragEnd={endTimelineDrag}
-                  onSelect={() => {
-                    setRest(null);
-                    setActiveIndex(i);
-                  }}
+                  onSelect={() => selectTimelinePrescription(i)}
                   draggingPreview={timelineDragVisual?.slotId === p.slotId}
+                  reorderDisabled={isPrescriptionDone(p)}
                   shiftY={timelineDragVisual ? shiftedRowOffset(i, timelineDragVisual.startIndex, timelineDragVisual.targetIndex, TIMELINE_ROW_HEIGHT) : 0}
                 />
               ))}

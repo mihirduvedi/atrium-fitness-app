@@ -18,6 +18,7 @@ import {
   type ProgramSlotOverview,
 } from '@/db/queries';
 import { borderWidth, radius, space, useTheme } from '@/theme';
+import { sanitizeWholeNumberInput } from '@/numericInput';
 import { formatWorkoutDayName } from '@/workoutNames';
 
 type EditorMode = 'list' | 'edit' | 'create';
@@ -46,6 +47,7 @@ const WEEKDAYS = [
 ];
 
 const MOVEMENT_ROW_HEIGHT = 62;
+const DEFAULT_SET_REST_SECONDS = 90;
 
 function SearchIcon() {
   const t = useTheme();
@@ -465,6 +467,7 @@ export default function ProgramLibraryScreen() {
   const [draftRepeatUnit, setDraftRepeatUnit] = useState<ProgramRepeatUnit>('week');
   const [draftWeekdays, setDraftWeekdays] = useState<number[]>([]);
   const [draftScheduleMode, setDraftScheduleMode] = useState<ScheduleMode>('interval');
+  const [draftSetRestSeconds, setDraftSetRestSeconds] = useState(String(DEFAULT_SET_REST_SECONDS));
 
   const load = useCallback(async () => {
     setItems(await listProgramLibrary(db, userId));
@@ -499,6 +502,7 @@ export default function ProgramLibraryScreen() {
     setDraftRepeatUnit(item.repeatUnit);
     setDraftWeekdays(item.weekdays);
     setDraftScheduleMode(item.weekdays.length > 0 ? 'weekdays' : 'interval');
+    setDraftSetRestSeconds(String(item.setRestSeconds ?? DEFAULT_SET_REST_SECONDS));
   }, []);
 
   useEffect(() => {
@@ -535,6 +539,7 @@ export default function ProgramLibraryScreen() {
     setDraftRepeatUnit('week');
     setDraftWeekdays([]);
     setDraftScheduleMode('interval');
+    setDraftSetRestSeconds(String(DEFAULT_SET_REST_SECONDS));
   };
 
   const closeEditor = () => {
@@ -576,6 +581,8 @@ export default function ProgramLibraryScreen() {
     const repeatEvery = Math.max(1, Math.min(7, Number.parseInt(draftRepeatEvery, 10) || 1));
     const weekdays = draftScheduleMode === 'weekdays' ? draftWeekdays : [];
     const repeatUnit = draftScheduleMode === 'weekdays' ? 'week' : draftRepeatUnit;
+    const setRestSeconds = Math.max(0, Math.min(900, Number.parseInt(draftSetRestSeconds, 10)));
+    if (!Number.isFinite(setRestSeconds)) return;
 
     if (mode === 'create') {
       const id = await createProgramDayTemplate(db, userId, {
@@ -585,6 +592,7 @@ export default function ProgramLibraryScreen() {
         repeatEvery: draftScheduleMode === 'weekdays' ? 1 : repeatEvery,
         repeatUnit,
         weekdays,
+        setRestSeconds,
         active: false,
       }, newId);
       sync?.sync().catch(() => {});
@@ -605,6 +613,7 @@ export default function ProgramLibraryScreen() {
       repeatEvery: draftScheduleMode === 'weekdays' ? 1 : repeatEvery,
       repeatUnit,
       weekdays,
+      setRestSeconds,
     });
     sync?.sync().catch(() => {});
     await load();
@@ -746,7 +755,7 @@ export default function ProgramLibraryScreen() {
               <Text style={[t.text('bodyM', 'textMuted'), { width: 92 }]}>Repeat every</Text>
               <TextInput
                 value={draftRepeatEvery}
-                onChangeText={setDraftRepeatEvery}
+                onChangeText={(value) => setDraftRepeatEvery(sanitizeWholeNumberInput(value))}
                 keyboardType="number-pad"
                 style={[...singleLineInputStyle(t), { width: 58, textAlign: 'center', paddingHorizontal: 0 }]}
               />
@@ -763,6 +772,24 @@ export default function ProgramLibraryScreen() {
               </View>
             </View>
           )}
+
+          <View style={{ borderTopWidth: borderWidth.hairline, borderTopColor: t.colors.borderHairline, paddingTop: space[3], gap: space[2] }}>
+            <Eyebrow>Rest timer</Eyebrow>
+            <Text style={t.text('bodyS', 'textMuted')}>
+              Choose how long the timer runs between sets.
+            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[2], maxWidth: 180 }}>
+              <TextInput
+                value={draftSetRestSeconds}
+                onChangeText={(value) => setDraftSetRestSeconds(sanitizeWholeNumberInput(value))}
+                keyboardType="number-pad"
+                maxLength={3}
+                accessibilityLabel="Rest between sets in seconds"
+                style={[...singleLineInputStyle(t), { flex: 1, textAlign: 'center', paddingHorizontal: 0 }]}
+              />
+              <Text style={t.text('bodyS', 'textMuted')}>sec</Text>
+            </View>
+          </View>
 
           {mode === 'edit' && (
             <View style={{ borderTopWidth: borderWidth.hairline, borderTopColor: t.colors.borderHairline, paddingTop: space[3], gap: 2 }}>
@@ -796,7 +823,12 @@ export default function ProgramLibraryScreen() {
 
           <View style={{ flexDirection: 'row', gap: space[3] }}>
             {mode === 'edit' && <Button title="Add movement" ghost onPress={openExerciseLibrary} style={{ flex: 1 }} />}
-            <Button title={mode === 'create' ? 'Create' : 'Save'} onPress={() => void saveDraft()} disabled={!draftName.trim()} style={{ flex: 1 }} />
+            <Button
+              title={mode === 'create' ? 'Create' : 'Save'}
+              onPress={() => void saveDraft()}
+              disabled={!draftName.trim() || !draftSetRestSeconds}
+              style={{ flex: 1 }}
+            />
           </View>
         </Card>
       </ScreenScroll>

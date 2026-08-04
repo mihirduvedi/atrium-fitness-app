@@ -22,6 +22,23 @@ export interface ReadinessSignal {
   source: 'health' | 'subjective' | 'fallback';
 }
 
+export interface DailyCheckIn {
+  date: string;
+  energy: number;
+  mood: number;
+  sleepQuality: number;
+  soreness: number;
+  weight: number | null;
+}
+
+export interface BodyWeightSummary {
+  latestWeight: number | null;
+  latestDate: string | null;
+  sevenDayAverage: number | null;
+  sevenDayDelta: number | null;
+  units: 'lb' | 'kg';
+}
+
 interface SampleRow {
   type: HealthSampleType;
   date: string;
@@ -35,7 +52,24 @@ interface TagRow {
   soreness: number | null;
 }
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
+function dateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+const todayIso = () => dateKey(new Date());
+
+function shiftDate(key: string, days: number) {
+  const date = new Date(`${key}T12:00:00`);
+  date.setDate(date.getDate() + days);
+  return dateKey(date);
+}
+
+function isRating(value: number) {
+  return Number.isInteger(value) && value >= 1 && value <= 5;
+}
 
 function stableHealthId(userId: string, source: string, externalId: string) {
   return `${userId}:${source}:${externalId}`;
@@ -134,6 +168,160 @@ export async function getHealthSampleCount(db: SqlDb, userId: string): Promise<n
   return row?.n ?? 0;
 }
 
+export async function getDailyCheckIn(
+  db: SqlDb,
+  userId: string,
+  date = todayIso(),
+): Promise<DailyCheckIn | null> {
+  const tag = await db.getFirstAsync<{
+    energy: number | null;
+    mood: number | null;
+    sleep_quality: number | null;
+    soreness: number | null;
+  }>(
+    `select energy, mood, sleep_quality, soreness
+       from subjective_tags
+      where user_id = ? and date = ? and workout_id is null and deleted_at is null
+      order by updated_at desc
+      limit 1`,
+    userId,
+    date,
+  );
+  if (!tag || tag.energy == null || tag.mood == null || tag.sleep_quality == null || tag.soreness == null) {
+    return null;
+  }
+  const metric = await db.getFirstAsync<{ weight: number | null }>(
+    `select weight
+       from body_metrics
+      where user_id = ? and date = ? and deleted_at is null
+      order by updated_at desc
+      limit 1`,
+    userId,
+    date,
+  );
+  return {
+    date,
+    energy: tag.energy,
+    mood: tag.mood,
+    sleepQuality: tag.sleep_quality,
+    soreness: tag.soreness,
+    weight: metric?.weight ?? null,
+  };
+}
+
+export async function saveDailyCheckIn(
+  db: SqlDb,
+  args: {
+    userId: string;
+    date?: string;
+    energy: number;
+    mood: number;
+    sleepQuality: number;
+    soreness: number;
+    weight?: number | null;
+  },
+  idFn: IdFn,
+): Promise<void> {
+  const ratings = [args.energy, args.mood, args.sleepQuality, args.soreness];
+  if (!ratings.every(isRating)) throw new Error('Daily check-in ratings must be whole numbers from 1 to 5.');
+  if (args.weight != null && (!Number.isFinite(args.weight) || args.weight <= 0)) {
+    throw new Error('Body weight must be greater than zero.');
+  }
+
+  const date = args.date ?? todayIso();
+  const updatedAt = new Date().toISOString();
+  const existingTag = await db.getFirstAsync<{ id: string }>(
+    `select id
+       from subjective_tags
+      where user_id = ? and date = ? and workout_id is null and deleted_at is null
+      order by updated_at desc
+      limit 1`,
+    args.userId,
+    date,
+  );
+  await upsertWithMutation(db, 'subjective_tags', {
+    id: existingTag?.id ?? idFn(),
+    user_id: args.userId,
+    workout_id: null,
+    date,
+    energy: args.energy,
+    mood: args.mood,
+    sleep_quality: args.sleepQuality,
+    soreness: args.soreness,
+    updated_at: updatedAt,
+    deleted_at: null,
+  }, idFn);
+
+  if (args.weight !== undefined) {
+    const existingMetric = await db.getFirstAsync<{ id: string; measurements: string }>(
+      `select id, measurements
+         from body_metrics
+        where user_id = ? and date = ? and deleted_at is null
+        order by updated_at desc
+        limit 1`,
+      args.userId,
+      date,
+    );
+    if (existingMetric || args.weight !== null) {
+      await upsertWithMutation(db, 'body_metrics', {
+        id: existingMetric?.id ?? idFn(),
+        user_id: args.userId,
+        date,
+        weight: args.weight ?? null,
+        measurements: existingMetric?.measurements ?? '{}',
+        updated_at: updatedAt,
+        deleted_at: null,
+      }, idFn);
+    }
+  }
+}
+
+export async function getBodyWeightSummary(
+  db: SqlDb,
+  userId: string,
+  date = todayIso(),
+): Promise<BodyWeightSummary> {
+  const currentStart = shiftDate(date, -6);
+  const previousStart = shiftDate(date, -13);
+  const previousEnd = shiftDate(date, -7);
+  const [latest, averages, profile] = await Promise.all([
+    db.getFirstAsync<{ weight: number; date: string }>(
+      `select weight, date
+         from body_metrics
+        where user_id = ? and date <= ? and weight is not null and deleted_at is null
+        order by date desc, updated_at desc
+        limit 1`,
+      userId,
+      date,
+    ),
+    db.getFirstAsync<{ current_average: number | null; previous_average: number | null }>(
+      `select avg(case when date >= ? then weight end) as current_average,
+              avg(case when date >= ? and date <= ? then weight end) as previous_average
+         from body_metrics
+        where user_id = ? and date >= ? and date <= ? and weight is not null and deleted_at is null`,
+      currentStart,
+      previousStart,
+      previousEnd,
+      userId,
+      previousStart,
+      date,
+    ),
+    db.getFirstAsync<{ units: string }>(
+      'select units from profiles where user_id = ? and deleted_at is null',
+      userId,
+    ),
+  ]);
+  const currentAverage = averages?.current_average ?? null;
+  const previousAverage = averages?.previous_average ?? null;
+  return {
+    latestWeight: latest?.weight ?? null,
+    latestDate: latest?.date ?? null,
+    sevenDayAverage: currentAverage,
+    sevenDayDelta: currentAverage != null && previousAverage != null ? currentAverage - previousAverage : null,
+    units: profile?.units === 'kg' ? 'kg' : 'lb',
+  };
+}
+
 export async function getReadinessSignal(db: SqlDb, userId: string, date = todayIso()): Promise<ReadinessSignal> {
   const rows = await db.getAllAsync<SampleRow>(
     `select type, date, value
@@ -148,7 +336,9 @@ export async function getReadinessSignal(db: SqlDb, userId: string, date = today
     `select energy, mood, sleep_quality, soreness
        from subjective_tags
       where user_id = ? and deleted_at is null and date <= ?
-      order by date desc
+      order by date desc,
+               case when workout_id is null then 0 else 1 end,
+               updated_at desc
       limit 1`,
     userId,
     date,

@@ -19,7 +19,13 @@ import {
   type InProgressWorkoutOverview,
   type NextDay,
 } from '@/db/queries';
-import { getReadinessSignal, type ReadinessSignal } from '@/health/readiness';
+import {
+  getBodyWeightSummary,
+  getDailyCheckIn,
+  getReadinessSignal,
+  type BodyWeightSummary,
+  type ReadinessSignal,
+} from '@/health/readiness';
 import { radius, space, useTheme } from '@/theme';
 import { displayWorkoutName, formatWorkoutDayName, formatWorkoutFocusName } from '@/workoutNames';
 
@@ -76,6 +82,16 @@ function startedLabel(iso: string): string {
   return new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }
 
+function bodyWeightDetail(summary: BodyWeightSummary | null) {
+  if (!summary?.latestDate) return 'Log in daily check-in';
+  if (summary.sevenDayDelta != null) {
+    if (Math.abs(summary.sevenDayDelta) < 0.05) return 'Steady · 7-day avg';
+    const direction = summary.sevenDayDelta > 0 ? 'Up' : 'Down';
+    return `${direction} ${Math.abs(summary.sevenDayDelta).toFixed(1)} ${summary.units} · 7-day avg`;
+  }
+  return `Last logged ${new Date(`${summary.latestDate}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+}
+
 export default function TodayScreen() {
   const t = useTheme();
   const { db, userId, newId } = useApp();
@@ -83,6 +99,8 @@ export default function TodayScreen() {
   const [plan, setPlan] = useState<SessionPlan | null>(null);
   const [archetypeName, setArchetypeName] = useState('');
   const [readinessSignal, setReadinessSignal] = useState<ReadinessSignal | null>(null);
+  const [bodyWeight, setBodyWeight] = useState<BodyWeightSummary | null>(null);
+  const [hasDailyCheckIn, setHasDailyCheckIn] = useState(false);
   const [manualReadiness, setManualReadiness] = useState<Readiness | null>(null);
   const [activeWorkout, setActiveWorkout] = useState<InProgressWorkoutOverview | null>(null);
   const [needsSetup, setNeedsSetup] = useState(false);
@@ -92,8 +110,12 @@ export default function TodayScreen() {
     useCallback(() => {
       let live = true;
       (async () => {
-        const signal = await getReadinessSignal(db, userId);
-        const firstActive = await getInProgressWorkoutOverview(db, userId);
+        const [signal, weightSummary, dailyCheckIn, firstActive] = await Promise.all([
+          getReadinessSignal(db, userId),
+          getBodyWeightSummary(db, userId),
+          getDailyCheckIn(db, userId),
+          getInProgressWorkoutOverview(db, userId),
+        ]);
         let keepActiveId = firstActive?.workoutId ?? null;
         if (firstActive && firstActive.completedSets === 0) {
           keepActiveId = (await getWorkoutDraft(db, firstActive.workoutId)) ? firstActive.workoutId : null;
@@ -107,6 +129,8 @@ export default function TodayScreen() {
             setPlan(null);
             setArchetypeName('');
             setReadinessSignal(signal);
+            setBodyWeight(weightSummary);
+            setHasDailyCheckIn(!!dailyCheckIn);
             setActiveWorkout(active);
             setNeedsSetup(true);
           }
@@ -118,6 +142,8 @@ export default function TodayScreen() {
         if (!live) return;
         setNeedsSetup(false);
         setReadinessSignal(signal);
+        setBodyWeight(weightSummary);
+        setHasDailyCheckIn(!!dailyCheckIn);
         setActiveWorkout(active);
         setDay(next);
         setPlan(p);
@@ -184,6 +210,9 @@ export default function TodayScreen() {
               return (
                 <Pressable
                   key={r.value}
+                  accessibilityRole="radio"
+                  accessibilityLabel={`${r.label} readiness override`}
+                  accessibilityState={{ selected: active }}
                   onPress={() => setManualReadiness((current) => (current === r.value ? null : r.value))}
                   style={{
                     flex: 1,
@@ -199,6 +228,28 @@ export default function TodayScreen() {
               );
             })}
           </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={hasDailyCheckIn ? 'Update daily check-in' : 'Open daily check-in'}
+            onPress={() => router.push('/check-in')}
+            style={({ pressed }) => ({
+              minHeight: 44,
+              borderTopWidth: 1,
+              borderTopColor: t.colors.borderHairline,
+              paddingTop: space[3],
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: space[3],
+              opacity: pressed ? 0.62 : 1,
+            })}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={t.text('bodyM')}>{hasDailyCheckIn ? 'Today’s check-in is logged' : 'Add a daily check-in'}</Text>
+              <Text style={t.text('bodyS', 'textMuted')}>Energy, mood, sleep, and soreness</Text>
+            </View>
+            <Text style={t.text('bodyM', 'textMuted')}>›</Text>
+          </Pressable>
         </Card>
       )}
 
@@ -272,11 +323,27 @@ export default function TodayScreen() {
             </Text>
             <ConsistencyMeter total={day.daysPerWeek} done={day.completedThisWeek} />
           </Card>
-          <Card style={{ flex: 1 }}>
-            <Eyebrow>Body weight</Eyebrow>
-            <Text style={t.text('heroNumXL')}>176.2</Text>
-            <Text style={[t.text('bodyS', 'dataBlue'), { fontWeight: '600' }]}>Down 0.4 lb · 7-day avg</Text>
-          </Card>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={bodyWeight?.latestWeight == null
+              ? 'Log body weight. No body weight logged.'
+              : `Body weight ${Math.round(bodyWeight.latestWeight * 10) / 10} ${bodyWeight.units}. ${bodyWeightDetail(bodyWeight)}`}
+            onPress={() => router.push('/check-in')}
+            style={({ pressed }) => ({ flex: 1, opacity: pressed ? 0.7 : 1 })}
+          >
+            <Card style={{ flex: 1 }}>
+              <Eyebrow>Body weight</Eyebrow>
+              <Text style={t.text('heroNumXL')}>
+                {bodyWeight?.latestWeight == null ? '—' : Math.round(bodyWeight.latestWeight * 10) / 10}
+                {bodyWeight?.latestWeight != null && (
+                  <Text style={t.text('bodyS', 'textMuted')}> {bodyWeight.units}</Text>
+                )}
+              </Text>
+              <Text style={[t.text('bodyS', bodyWeight?.latestWeight == null ? 'textMuted' : 'dataBlue'), { fontWeight: '600' }]}>
+                {bodyWeightDetail(bodyWeight)}
+              </Text>
+            </Card>
+          </Pressable>
         </View>
       )}
 

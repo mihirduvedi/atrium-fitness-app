@@ -14,7 +14,7 @@
  * This module is pure SQL + types so vitest can apply it to node:sqlite.
  */
 
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 10;
 
 export const SCHEMA_SQL = `
 create table if not exists profiles (
@@ -194,6 +194,8 @@ create table if not exists program_day_settings (
   repeat_every integer not null default 1,
   repeat_unit text not null default 'week',
   weekdays text not null default '[]',
+  set_rest_s integer,
+  exercise_rest_s integer,
   updated_at text not null,
   deleted_at text
 );
@@ -299,6 +301,40 @@ export async function migrate(db: SqlDb): Promise<void> {
   await ensureColumn(db, 'exercises', 'default_sets', 'default_sets integer');
   await ensureColumn(db, 'exercises', 'default_reps', 'default_reps integer');
   await ensureColumn(db, 'program_day_settings', 'active', 'active integer not null default 1');
+  await ensureColumn(db, 'program_day_settings', 'set_rest_s', 'set_rest_s integer');
+  await ensureColumn(db, 'program_day_settings', 'exercise_rest_s', 'exercise_rest_s integer');
+  if (current < 9) {
+    await db.execAsync(`
+      update program_day_settings
+         set category = (
+           select case
+             when instr(lower(d.name), 'arm') > 0 or instr(lower(d.name), 'bicep') > 0 or instr(lower(d.name), 'tricep') > 0 then 'arms'
+             when instr(lower(d.name), 'chest') > 0 or instr(lower(d.name), 'push') > 0 then 'chest'
+             when instr(lower(d.name), 'back') > 0 or instr(lower(d.name), 'pull') > 0 then 'back'
+             when instr(lower(d.name), 'upper') > 0 then 'upper'
+             when instr(lower(d.name), 'lower') > 0 or instr(lower(d.name), 'leg') > 0 then 'lower'
+             when instr(lower(d.name), 'free') > 0 then 'free'
+             else 'other'
+           end
+             from program_days d
+            where d.id = program_day_settings.program_day_id
+         )
+       where category = 'other'
+         and deleted_at is null
+         and exists (
+           select 1
+             from program_days d
+            where d.id = program_day_settings.program_day_id
+              and (
+                instr(lower(d.name), 'arm') > 0 or instr(lower(d.name), 'bicep') > 0 or instr(lower(d.name), 'tricep') > 0 or
+                instr(lower(d.name), 'chest') > 0 or instr(lower(d.name), 'push') > 0 or
+                instr(lower(d.name), 'back') > 0 or instr(lower(d.name), 'pull') > 0 or
+                instr(lower(d.name), 'upper') > 0 or instr(lower(d.name), 'lower') > 0 or
+                instr(lower(d.name), 'leg') > 0 or instr(lower(d.name), 'free') > 0
+              )
+         );
+    `);
+  }
   if (current < SCHEMA_VERSION) {
     await db.execAsync(`pragma user_version = ${SCHEMA_VERSION}`);
   }
