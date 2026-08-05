@@ -8,6 +8,7 @@ import { Card, Eyebrow, ScreenScroll } from '@/components/ui';
 import { getActiveProgram, type ProgramInfo } from '@/db/queries';
 import { canRequestHealthKit, requestHealthKitImport } from '@/health/healthkit';
 import { getHealthSampleCount } from '@/health/readiness';
+import { subscriptionStatusLabel } from '@/subscriptions/subscription';
 import { borderWidth, radius, space, useAppearancePreference, useTheme, type AppearancePreference } from '@/theme';
 
 interface ProfileRow {
@@ -290,10 +291,11 @@ function AppearanceSetting() {
 
 export default function ProfileScreen() {
   const t = useTheme();
-  const { db, userId, sync, newId } = useApp();
+  const { db, userId, sync, newId, subscription, manageSubscription, restoreSubscription } = useApp();
   const [data, setData] = useState<ProfileData>(emptyData);
   const [authBusy, setAuthBusy] = useState(false);
   const [healthBusy, setHealthBusy] = useState(false);
+  const [subscriptionBusy, setSubscriptionBusy] = useState<'manage' | 'restore' | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -372,6 +374,32 @@ export default function ProfileScreen() {
     Alert.alert('Health import', `Imported ${result.imported ?? 0} readiness samples.`);
   }, [db, healthBusy, newId, userId]);
 
+  const handleSubscription = useCallback(async () => {
+    if (!subscription.hasPremiumAccess) {
+      router.push('/paywall');
+      return;
+    }
+    if (subscriptionBusy) return;
+    setSubscriptionBusy('manage');
+    const result = await manageSubscription();
+    setSubscriptionBusy(null);
+    if (result.outcome !== 'success') {
+      Alert.alert('Manage subscription', result.message ?? 'The subscription page could not be opened.');
+    }
+  }, [manageSubscription, subscription.hasPremiumAccess, subscriptionBusy]);
+
+  const handleRestore = useCallback(async () => {
+    if (subscriptionBusy) return;
+    setSubscriptionBusy('restore');
+    const result = await restoreSubscription();
+    setSubscriptionBusy(null);
+    if (result.outcome === 'success') {
+      Alert.alert('Restore purchases', 'Atrium Premium has been restored.');
+      return;
+    }
+    Alert.alert('Restore purchases', result.message ?? 'No active Atrium Premium purchase was found.');
+  }, [restoreSubscription, subscriptionBusy]);
+
   const equipment = useMemo(() => parseEquipment(data.profile?.equipment), [data.profile?.equipment]);
   const coachFacts = [
     data.profile?.goal,
@@ -433,6 +461,20 @@ export default function ProfileScreen() {
 
       <Card style={{ paddingVertical: 4, paddingHorizontal: 16 }}>
         <AccountRow status={data.account} busy={authBusy} onPress={handleAppleUpgrade} />
+      </Card>
+
+      <Card style={{ paddingVertical: 4, paddingHorizontal: 16 }}>
+        <ProfileRowItem
+          label="Atrium Premium"
+          detail={subscriptionBusy === 'manage' ? 'Opening' : subscriptionStatusLabel(subscription)}
+          onPress={() => void handleSubscription()}
+        />
+        <ProfileRowItem
+          label="Restore purchases"
+          detail={subscriptionBusy === 'restore' ? 'Restoring' : 'Store account'}
+          onPress={() => void handleRestore()}
+          last
+        />
       </Card>
 
       <Card style={{ paddingVertical: 4, paddingHorizontal: 16 }}>

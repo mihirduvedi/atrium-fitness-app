@@ -14,7 +14,7 @@
  * This module is pure SQL + types so vitest can apply it to node:sqlite.
  */
 
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 11;
 
 export const SCHEMA_SQL = `
 create table if not exists profiles (
@@ -212,6 +212,29 @@ create table if not exists workout_plan_settings (
   deleted_at text
 );
 
+-- Local-only Coach conversations. These can contain sensitive training and
+-- recovery discussion, so they do not enter the generic sync queue. The user
+-- can permanently delete a thread and its messages from the Coach screen.
+create table if not exists coach_threads (
+  id text primary key,
+  user_id text not null,
+  title text not null,
+  created_at text not null,
+  updated_at text not null
+);
+
+create table if not exists coach_messages (
+  id text primary key,
+  thread_id text not null references coach_threads (id) on delete cascade,
+  user_id text not null,
+  role text not null check (role in ('user', 'assistant')),
+  content text not null,
+  history_content text not null,
+  reply_json text,
+  evidence_json text not null default '[]',
+  created_at text not null
+);
+
 create table if not exists sync_cursors (
   user_id text not null,
   device_id text not null,
@@ -249,6 +272,8 @@ create index if not exists progress_photos_user_taken_idx on progress_photos (us
 create index if not exists workout_drafts_user_idx on workout_drafts (user_id, updated_at);
 create index if not exists program_day_settings_user_idx on program_day_settings (user_id, category);
 create index if not exists workout_plan_settings_user_idx on workout_plan_settings (user_id, goal);
+create index if not exists coach_threads_user_updated_idx on coach_threads (user_id, updated_at desc);
+create index if not exists coach_messages_thread_created_idx on coach_messages (thread_id, created_at);
 create index if not exists mutation_queue_unpushed_idx on mutation_queue (seq) where pushed_at is null;
 `;
 
@@ -303,6 +328,7 @@ export async function migrate(db: SqlDb): Promise<void> {
   await ensureColumn(db, 'program_day_settings', 'active', 'active integer not null default 1');
   await ensureColumn(db, 'program_day_settings', 'set_rest_s', 'set_rest_s integer');
   await ensureColumn(db, 'program_day_settings', 'exercise_rest_s', 'exercise_rest_s integer');
+  await ensureColumn(db, 'coach_messages', 'history_content', "history_content text not null default ''");
   if (current < 9) {
     await db.execAsync(`
       update program_day_settings

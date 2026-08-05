@@ -26,6 +26,7 @@ import {
   type BodyWeightSummary,
   type ReadinessSignal,
 } from '@/health/readiness';
+import { shouldShowConversionTeaser } from '@/subscriptions/subscription';
 import { radius, space, useTheme } from '@/theme';
 import { displayWorkoutName, formatWorkoutDayName, formatWorkoutFocusName } from '@/workoutNames';
 
@@ -94,7 +95,7 @@ function bodyWeightDetail(summary: BodyWeightSummary | null) {
 
 export default function TodayScreen() {
   const t = useTheme();
-  const { db, userId, newId } = useApp();
+  const { db, userId, newId, subscription } = useApp();
   const [day, setDay] = useState<NextDay | null>(null);
   const [plan, setPlan] = useState<SessionPlan | null>(null);
   const [archetypeName, setArchetypeName] = useState('');
@@ -104,17 +105,28 @@ export default function TodayScreen() {
   const [manualReadiness, setManualReadiness] = useState<Readiness | null>(null);
   const [activeWorkout, setActiveWorkout] = useState<InProgressWorkoutOverview | null>(null);
   const [needsSetup, setNeedsSetup] = useState(false);
+  const [completedWorkouts, setCompletedWorkouts] = useState(0);
   const effectiveReadiness = manualReadiness ?? readinessSignal?.readiness ?? 'green';
 
   useFocusEffect(
     useCallback(() => {
       let live = true;
       (async () => {
-        const [signal, weightSummary, dailyCheckIn, firstActive] = await Promise.all([
+        const [signal, weightSummary, dailyCheckIn, firstActive, completed] = await Promise.all([
           getReadinessSignal(db, userId),
           getBodyWeightSummary(db, userId),
           getDailyCheckIn(db, userId),
           getInProgressWorkoutOverview(db, userId),
+          db.getFirstAsync<{ n: number }>(
+            `select count(*) as n
+               from workouts w
+              where w.user_id = ? and w.ended_at is not null and w.deleted_at is null
+                and exists (
+                  select 1 from sets s
+                   where s.workout_id = w.id and s.deleted_at is null and s.is_warmup = 0
+                )`,
+            userId,
+          ),
         ]);
         let keepActiveId = firstActive?.workoutId ?? null;
         if (firstActive && firstActive.completedSets === 0) {
@@ -132,6 +144,7 @@ export default function TodayScreen() {
             setBodyWeight(weightSummary);
             setHasDailyCheckIn(!!dailyCheckIn);
             setActiveWorkout(active);
+            setCompletedWorkouts(completed?.n ?? 0);
             setNeedsSetup(true);
           }
           return;
@@ -145,6 +158,7 @@ export default function TodayScreen() {
         setBodyWeight(weightSummary);
         setHasDailyCheckIn(!!dailyCheckIn);
         setActiveWorkout(active);
+        setCompletedWorkouts(completed?.n ?? 0);
         setDay(next);
         setPlan(p);
         setArchetypeName(archetypeById.get(program.archetype_id)?.name ?? program.archetype_id);
@@ -347,12 +361,24 @@ export default function TodayScreen() {
         </View>
       )}
 
-      {!needsSetup && (
-        <Teaser
-          marker="+"
-          title="Your weekly review is ready."
-          detail="A few wins, one thing to watch, and a cleaner plan for next week."
-        />
+      {!needsSetup && subscription.hasPremiumAccess && (
+        <Pressable onPress={() => router.push('/review')} style={({ pressed }) => ({ opacity: pressed ? 0.68 : 1 })}>
+          <Teaser
+            marker="+"
+            title="Your weekly review is ready."
+            detail="A few wins, one thing to watch, and a cleaner plan for next week."
+          />
+        </Pressable>
+      )}
+
+      {!needsSetup && shouldShowConversionTeaser(completedWorkouts, subscription.hasPremiumAccess) && (
+        <Pressable onPress={() => router.push('/paywall')} style={({ pressed }) => ({ opacity: pressed ? 0.68 : 1 })}>
+          <Teaser
+            marker="+"
+            title="Your coach has enough context."
+            detail={`${completedWorkouts} workouts logged. See the trends and weekly review Atrium can build from them.`}
+          />
+        </Pressable>
       )}
     </ScreenScroll>
   );

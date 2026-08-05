@@ -17,6 +17,8 @@ describe('on-device SQLite schema', () => {
     expect(names).toContain('workout_drafts');
     expect(names).toContain('program_day_settings');
     expect(names).toContain('workout_plan_settings');
+    expect(names).toContain('coach_threads');
+    expect(names).toContain('coach_messages');
     expect(names).toContain('mutation_queue');
     expect(names).toContain('sync_cursors');
     db.close();
@@ -63,6 +65,8 @@ describe('on-device SQLite schema', () => {
     expect(SYNCED_TABLES).not.toContain('progress_photos' as never);
     expect(SYNCED_TABLES).not.toContain('program_day_settings' as never);
     expect(SYNCED_TABLES).not.toContain('workout_plan_settings' as never);
+    expect(SYNCED_TABLES).not.toContain('coach_threads' as never);
+    expect(SYNCED_TABLES).not.toContain('coach_messages' as never);
     // every synced table carries updated_at + deleted_at (tombstones for sync)
     for (const t of SYNCED_TABLES) {
       const c = await cols(t);
@@ -172,6 +176,44 @@ describe('on-device SQLite schema', () => {
     expect(cols).toContain('exercise_rest_s');
     const tables = (await db.getAllAsync<{ name: string }>("select name from sqlite_master where type = 'table'")).map((t) => t.name);
     expect(tables).toContain('workout_plan_settings');
+    db.close();
+  });
+
+  it('repairs an interrupted Coach history upgrade without exposing old messages to model history', async () => {
+    const db = openNodeDb();
+    await db.execAsync(`
+      create table coach_threads (
+        id text primary key,
+        user_id text not null,
+        title text not null,
+        created_at text not null,
+        updated_at text not null
+      );
+      create table coach_messages (
+        id text primary key,
+        thread_id text not null references coach_threads (id) on delete cascade,
+        user_id text not null,
+        role text not null check (role in ('user', 'assistant')),
+        content text not null,
+        reply_json text,
+        evidence_json text not null default '[]',
+        created_at text not null
+      );
+      insert into coach_threads (id, user_id, title, created_at, updated_at)
+      values ('thread-1', 'user-1', 'Older conversation', '2026-08-04T10:00:00.000Z', '2026-08-04T10:00:00.000Z');
+      insert into coach_messages (id, thread_id, user_id, role, content, created_at)
+      values ('message-1', 'thread-1', 'user-1', 'user', 'Older prompt', '2026-08-04T10:00:00.000Z');
+      pragma user_version = 11;
+    `);
+
+    await migrate(db);
+    const cols = (await db.getAllAsync<{ name: string }>('pragma table_info(coach_messages)')).map((c) => c.name);
+    const row = await db.getFirstAsync<{ history_content: string }>(
+      'select history_content from coach_messages where id = ?',
+      'message-1',
+    );
+    expect(cols).toContain('history_content');
+    expect(row?.history_content).toBe('');
     db.close();
   });
 

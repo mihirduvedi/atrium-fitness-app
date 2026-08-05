@@ -20,7 +20,7 @@ The app is intended to help users:
 - understand personal records and volume trends
 - receive adaptive programming suggestions
 - reflect on recovery and consistency
-- eventually interact with an AI coach grounded in their own data
+- interact with an AI coach grounded in their own data
 
 ## Product model
 
@@ -76,7 +76,7 @@ The current project includes:
 - Progress analytics with selectable 4/12-week period comparisons, exercise-level e1RM changes, workout session drilldowns with set-level detail, and a local-only progress-photo timeline
 - readiness calculated from HealthKit and subjective signals
 - a daily check-in for energy, mood, sleep quality, soreness, and optional body weight that feeds Today and Weekly Review
-- a grounded local Coach experience and Weekly Review
+- interactive grounded AI Coach chat that starts empty and answers the question first, with evidence labels, a vertical device-local thread menu, confirmed deletion, minimized context, deterministic fitness/privacy/secret/safety boundaries, authenticated rate-limited server inference, an offline fallback, and a fictional-data regression/live evaluation harness, plus Weekly Review
 - profile, light/dark appearance, privacy, deferred anonymous auth, and Apple upgrade scaffolding
 - SQLite storage, offline sync, Supabase schema/RLS, progression engine, and shared design tokens
 
@@ -84,9 +84,9 @@ The current project includes:
 
 Potential future directions include:
 
-- production AI Coach responses, tools, and safety guardrails
+- live AI Coach evaluation with qualified domain/privacy review, issue reporting, multilingual and obfuscated adversarial coverage, staging security verification, and explicit plan-adjustment tools that remain inside deterministic engine rules
 - deeper recovery-aware Progress insights and body-metric correlations
-- RevenueCat subscriptions and paywall
+- RevenueCat store configuration and native sandbox purchase QA
 - nutrition quick logging only where it strengthens readiness or review
 - Strong and Hevy importers
 - exercise media and video library

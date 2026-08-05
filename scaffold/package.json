@@ -8,6 +8,12 @@
     "packages/*"
   ],
   "scripts": {
+    "coach:eval": "npm run coach:eval --workspace mobile",
+    "coach:gate": "npm run coach:gate --workspace mobile",
+    "coach:smoke:local": "node scripts/coach-local-smoke.mjs",
+    "coach:groq:check": "node scripts/check-coach-groq-config.mjs",
+    "coach:eval:groq": "npm run coach:eval:groq --workspace mobile",
+    "coach:gate:groq": "npm run coach:gate:groq --workspace mobile",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "mobile": "npm run start --workspace mobile"

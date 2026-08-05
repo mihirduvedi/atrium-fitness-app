@@ -4,6 +4,8 @@ import { Pressable, Text, View } from 'react-native';
 import { useApp } from '@/AppContext';
 import { buildCoachContextPack, formatCompactNumber, formatDelta, type CoachContextPack } from '@/coach/context';
 import { Button, Card, Eyebrow, ScreenScroll } from '@/components/ui';
+import { PremiumFeatureScreen } from '@/subscriptions/PremiumFeatureScreen';
+import { canAccessSubscriptionFeature } from '@/subscriptions/subscription';
 import { borderWidth, radius, space, useTheme } from '@/theme';
 import { displayWorkoutName } from '@/workoutNames';
 
@@ -112,7 +114,7 @@ function Highlight({ mark, title, body }: { mark: string; title: string; body: s
   );
 }
 
-export default function WeeklyReviewScreen() {
+function WeeklyReviewContent() {
   const t = useTheme();
   const { db, userId } = useApp();
   const [pack, setPack] = useState<CoachContextPack | null>(null);
@@ -231,4 +233,19 @@ export default function WeeklyReviewScreen() {
       />
     </ScreenScroll>
   );
+}
+
+export default function WeeklyReviewScreen() {
+  const { subscription } = useApp();
+  if (!canAccessSubscriptionFeature('weekly_review', subscription.hasPremiumAccess)) {
+    return (
+      <PremiumFeatureScreen
+        eyebrow="Atrium Premium"
+        title="Your week, read clearly."
+        detail="Unlock a weekly review of consistency, progress, recovery, and the next useful adjustment."
+        onBack={() => router.replace('/(tabs)/coach')}
+      />
+    );
+  }
+  return <WeeklyReviewContent />;
 }

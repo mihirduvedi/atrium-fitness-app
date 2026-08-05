@@ -6,6 +6,7 @@ import { useApp } from '@/AppContext';
 import { Card, Eyebrow, ScreenScroll, Teaser } from '@/components/ui';
 import { getProgressAnalytics, type ProgressAnalyticsData } from '@/db/queries';
 import { getProgressPhotoStats, type ProgressPhotoStats } from '@/photos/progressPhotos';
+import { canAccessSubscriptionFeature } from '@/subscriptions/subscription';
 import { borderWidth, radius, space, useTheme } from '@/theme';
 import { displayWorkoutName } from '@/workoutNames';
 
@@ -160,7 +161,7 @@ function PhotoStatusCard({ stats }: { stats: ProgressPhotoStats }) {
 
 export default function ProgressScreen() {
   const t = useTheme();
-  const { db, userId } = useApp();
+  const { db, userId, subscription } = useApp();
   const [data, setData] = useState<ProgressData>({
     workouts: [],
     prs: [],
@@ -233,6 +234,7 @@ export default function ProgressScreen() {
   const rangeSessions = analytics?.current.sessions ?? 0;
   const rangeSets = analytics?.current.sets ?? 0;
   const previousVolume = analytics?.previous.volume ?? 0;
+  const hasAdvancedAnalytics = canAccessSubscriptionFeature('advanced_analytics', subscription.hasPremiumAccess);
 
   return (
     <ScreenScroll>
@@ -248,6 +250,8 @@ export default function ProgressScreen() {
 
       <PhotoStatusCard stats={data.photoStats} />
 
+      {hasAdvancedAnalytics ? (
+        <>
       <Card>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: space[3], alignItems: 'center' }}>
           <View style={{ flex: 1, minWidth: 0 }}>
@@ -359,6 +363,21 @@ export default function ProgressScreen() {
           );
         })}
       </Card>
+        </>
+      ) : (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="See Atrium Premium analytics"
+          onPress={() => router.push('/paywall')}
+          style={({ pressed }) => ({ opacity: pressed ? 0.68 : 1 })}
+        >
+          <Teaser
+            marker="+"
+            title="Your deeper trends are taking shape."
+            detail="Atrium Premium adds 4- and 12-week comparisons while your history and PRs stay free."
+          />
+        </Pressable>
+      )}
 
       <Card>
         <Eyebrow>Recent records</Eyebrow>

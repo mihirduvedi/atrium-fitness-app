@@ -113,7 +113,7 @@ export function AtriumFloatingNav() {
   ];
   const tabWidth = 58;
 
-  if (pathname.includes('onboarding')) return null;
+  if (pathname.includes('onboarding') || pathname.includes('paywall')) return null;
 
   return (
     <View

@@ -28,7 +28,17 @@ export async function signInAnonymouslyIfNeeded(knownUserId: string | null): Pro
   if (!supabase) return null;
   try {
     const { data: sessionData } = await supabase.auth.getSession();
-    if (sessionData.session) return sessionData.session.user.id;
+    if (sessionData.session) {
+      const sessionUserId = sessionData.session.user.id;
+      // A local Supabase restart can invalidate the simulator's anonymous
+      // session. Development-only Coach recovery may mint a fresh auth user;
+      // keep the existing SQLite scope so local workouts are not hidden on
+      // the next reload. Production never bridges different account IDs.
+      if (process.env.NODE_ENV !== 'production' && knownUserId && sessionUserId !== knownUserId) {
+        return knownUserId;
+      }
+      return sessionUserId;
+    }
     // an existing local user id means we already had an account once; signing
     // in anonymously again would mint a NEW user — prefer staying local
     if (knownUserId) return knownUserId;

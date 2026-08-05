@@ -19,12 +19,13 @@ Atrium is in active development. The current app includes:
 - Exercise, Program, and Workout Plan libraries with search, filters, scheduling, custom movements, and drag reordering
 - Progress analytics with 4/12-week and exercise-level comparisons, session-by-session workout history with set-level drilldowns, personal-record detection, local progress photos, and weekly review
 - a daily recovery and body-weight check-in that updates readiness, planned training stress, real seven-day weight trends, and Weekly Review context
-- a local Coach experience grounded in profile, workout, PR, readiness, and next-plan context
+- an interactive AI Coach grounded in minimized profile, workout, PR, readiness, and next-plan context, with device-local deletable threads, authenticated server calls, fixed fitness/privacy/secret boundaries, durable per-user rate limiting, evidence labels, an offline fallback, and a repeatable 34-case fictional-data evaluation suite
+- a soft RevenueCat paywall with dynamic store pricing, restore/manage actions, and a free tracker that remains usable when subscriptions are unavailable
 - HealthKit import for sleep, resting heart rate, HRV, steps, and workouts in native iOS builds
 - SQLite storage, an offline mutation queue, Supabase sync architecture, row-level security, and deferred anonymous authentication
 - light and dark appearance modes built from shared Atrium design tokens
 
-This is an active work-in-progress project, not a finished commercial app. The production AI Coach backend, subscriptions, and importers are intentionally still future work.
+This is an active work-in-progress project, not a finished commercial app. Production AI Coach deployment and provider privacy review, store subscription configuration, and importers are intentionally still future work.
 
 ## Core product idea
 
@@ -50,9 +51,11 @@ The long-term goal is to help users answer questions like:
 - local-first SQLite storage
 - offline mutation queue with retries, tombstones, cursors, and conflict handling
 - Supabase schema, anonymous auth, and row-level security
+- authenticated Supabase Edge Function for schema-validated OpenAI Responses API calls, with server-whitelisted context, server-only credentials, protected-output checks, and a service-role-only rate-limit RPC
 - pure TypeScript progression, readiness, warm-up, deload, stall, and PR logic
 - native HealthKit integration through `@kingstinct/react-native-healthkit`
-- automated coverage across the mobile data layer, sync, coach context, photos, engine, and design tokens
+- RevenueCat subscription state, offering, purchase, restore, and management integration through `react-native-purchases`
+- automated coverage across the mobile data layer, sync, coach context/chat evaluations, photos, engine, and design tokens
 
 ## Design direction
 
@@ -111,11 +114,28 @@ has also been manually verified on-device.
 |---|---|
 | ![Progress analytics](screenshots/progress-analytics.png) | ![Workout session detail](screenshots/progress-session-detail.jpg) |
 
-### Coaching
+### AI Coach
 
-| Coach | Weekly Review |
-|---|---|
-| ![Coach screen](screenshots/coach-first-pass.png) | ![Weekly Review](screenshots/weekly-review.png) |
+The Coach now answers the question first, cites the supplied training facts when
+they support the decision, and asks a follow-up only when missing information
+would materially change the recommendation. New threads open empty rather than
+inserting an unsolicited welcome message.
+
+| Grounded training guidance | Safety boundary | Privacy boundary |
+|---|---|---|
+| ![Coach answering what workout to do from readiness and the next planned session](screenshots/coach-grounded-guidance.png) | ![Coach declining to diagnose knee pain and directing the athlete to qualified care](screenshots/coach-safety-boundary.png) | ![Coach refusing a request for another user's private workout records](screenshots/coach-privacy-boundary.png) |
+
+Conversation history opens from the menu button beside the Coach context
+summary. Threads appear vertically with short topic previews; they stay on the
+device, can be reopened, and require confirmation before permanent deletion.
+
+| Conversation history | Delete confirmation | Weekly Review |
+|---|---|---|
+| ![Vertical device-local Coach conversation history](screenshots/coach-conversations.png) | ![Coach conversation deletion confirmation](screenshots/coach-delete-confirmation.png) | ![Weekly Review](screenshots/weekly-review.png) |
+
+See the [AI Coach feature guide](docs/AI_COACH_FEATURES.md) for the user
+experience, grounding boundary, conversation behavior, safety routes, offline
+fallback, subscription boundary, and verification coverage.
 
 ### More product surfaces
 
@@ -168,6 +188,14 @@ npm run ios --workspace mobile
 ```
 
 Copy `scaffold/apps/mobile/.env.example` to `.env` and supply your own local Supabase URL and anonymous key when testing sync. No private environment file is included in this repository.
+
+The live AI Coach also needs a server-side OpenAI secret and a running or deployed Supabase function. See [`docs/AI_COACH_SETUP.md`](docs/AI_COACH_SETUP.md); never place that secret in an `EXPO_PUBLIC_` variable.
+
+Before changing the Coach model or prompt, run the deterministic regression suite and the opt-in live endpoint evaluation described in [`docs/AI_COACH_EVALS.md`](docs/AI_COACH_EVALS.md).
+
+The Coach data boundary, local thread behavior, and remaining production security work are documented in [`docs/AI_COACH_PRIVACY.md`](docs/AI_COACH_PRIVACY.md).
+
+The complete product behavior is summarized in [`docs/AI_COACH_FEATURES.md`](docs/AI_COACH_FEATURES.md).
 
 ## License
 

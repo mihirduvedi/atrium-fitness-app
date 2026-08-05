@@ -79,6 +79,21 @@ describe('coach context pack', () => {
       displayValue: '233 lb',
     });
     expect(pack.modelContext.constraints.length).toBeGreaterThan(0);
+    expect(JSON.stringify(pack.modelContext)).not.toContain(currentWorkoutId);
+    expect(JSON.stringify(pack.modelContext)).not.toContain('T10:00:00.000Z');
+    expect(pack.modelContext.recentWorkouts[0]).toMatchObject({
+      date: '2026-06-16',
+      dayName: expect.any(String),
+      sets: 1,
+    });
+    expect(pack.evidence.map((item) => item.key)).toEqual(expect.arrayContaining([
+      'profile',
+      'current_week',
+      'next_session',
+      'latest_pr',
+      'recovery',
+      'last_workout',
+    ]));
     db.close();
   });
 });

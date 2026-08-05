@@ -75,6 +75,40 @@ export interface CoachWeekContext {
   averageReadiness: number | null;
 }
 
+export type CoachEvidenceKey =
+  | 'profile'
+  | 'current_week'
+  | 'next_session'
+  | 'latest_pr'
+  | 'recovery'
+  | 'last_workout';
+
+export interface CoachEvidence {
+  key: CoachEvidenceKey;
+  label: string;
+  value: string;
+}
+
+export type CoachModelProgramContext = Omit<CoachProgramContext, 'id'>;
+
+export interface CoachModelWorkoutContext {
+  date: string;
+  dayName: string | null;
+  readinessAtStart: number | null;
+  volume: number;
+  sets: number;
+  durationMin: number;
+}
+
+export interface CoachModelPrSignal {
+  exerciseName: string;
+  type: string;
+  label: string;
+  value: number;
+  displayValue: string;
+  achievedDate: string;
+}
+
 export interface CoachContextPack {
   generatedAt: string;
   profile: CoachProfileContext | null;
@@ -84,12 +118,13 @@ export interface CoachContextPack {
   prSignals: CoachPrSignal[];
   readiness: ReadinessSignal;
   facts: string[];
+  evidence: CoachEvidence[];
   modelContext: {
     profile: CoachProfileContext | null;
-    program: CoachProgramContext | null;
+    program: CoachModelProgramContext | null;
     currentWeek: CoachWeekContext;
-    recentWorkouts: CoachWorkoutContext[];
-    prSignals: CoachPrSignal[];
+    recentWorkouts: CoachModelWorkoutContext[];
+    prSignals: CoachModelPrSignal[];
     recovery: Pick<ReadinessSignal, 'score' | 'readiness' | 'title' | 'body'>;
     constraints: string[];
   };
@@ -199,23 +234,51 @@ function toPrSignal(pr: PrRow, units: string): CoachPrSignal {
   };
 }
 
-function summarizeFacts(args: {
+function buildEvidence(args: {
   profile: CoachProfileContext | null;
   program: CoachProgramContext | null;
   week: CoachWeekContext;
+  recentWorkouts: CoachWorkoutContext[];
   prSignals: CoachPrSignal[];
   readiness: ReadinessSignal;
 }) {
-  const facts: string[] = [];
+  const evidence: CoachEvidence[] = [];
   if (args.profile) {
-    facts.push(`${titleCase(args.profile.goal)} · ${titleCase(args.profile.experience)} · ${args.profile.daysPerWeek} days/wk`);
+    evidence.push({
+      key: 'profile',
+      label: 'Training profile',
+      value: `${titleCase(args.profile.goal)} · ${titleCase(args.profile.experience)} · ${args.profile.daysPerWeek} days/wk`,
+    });
   }
-  facts.push(`${args.week.workouts} sessions · ${formatCompactNumber(args.week.volume)} ${args.profile?.units ?? 'lb'} this week`);
-  if (args.week.previousWorkouts > 0) facts.push(`Volume ${formatDelta(args.week.volumeDeltaPct)} vs previous week`);
-  if (args.program?.nextDayName) facts.push(`Next target: ${args.program.nextDayName}`);
-  if (args.prSignals[0]) facts.push(`Latest PR signal: ${args.prSignals[0].exerciseName} ${args.prSignals[0].displayValue}`);
-  facts.push(`Recovery: ${args.readiness.score} · ${args.readiness.title}`);
-  return facts;
+  evidence.push({
+    key: 'current_week',
+    label: 'Current week',
+    value: `${args.week.workouts} sessions · ${formatCompactNumber(args.week.volume)} ${args.profile?.units ?? 'lb'}${args.week.previousWorkouts > 0 ? ` · ${formatDelta(args.week.volumeDeltaPct)} vs prior week` : ''}`,
+  });
+  if (args.program?.nextDayName) {
+    evidence.push({ key: 'next_session', label: 'Next session', value: args.program.nextDayName });
+  }
+  if (args.prSignals[0]) {
+    evidence.push({
+      key: 'latest_pr',
+      label: 'Latest PR',
+      value: `${args.prSignals[0].exerciseName} · ${args.prSignals[0].displayValue}`,
+    });
+  }
+  evidence.push({
+    key: 'recovery',
+    label: 'Recovery',
+    value: `${args.readiness.score} · ${args.readiness.title}`,
+  });
+  if (args.recentWorkouts[0]) {
+    const latest = args.recentWorkouts[0];
+    evidence.push({
+      key: 'last_workout',
+      label: 'Last workout',
+      value: `${latest.dayName ?? 'Workout'} · ${latest.sets} sets · ${formatCompactNumber(latest.volume)} ${args.profile?.units ?? 'lb'}`,
+    });
+  }
+  return evidence;
 }
 
 export async function buildCoachContextPack(
@@ -326,7 +389,32 @@ export async function buildCoachContextPack(
     .filter((pr, index, all) => all.findIndex((x) => `${x.exercise_id}:${x.type}` === `${pr.exercise_id}:${pr.type}`) === index)
     .map((pr) => toPrSignal(pr, profile?.units ?? 'lb'));
   const readiness = await getReadinessSignal(db, userId, todayKey);
-  const facts = summarizeFacts({ profile, program, week, prSignals, readiness });
+  const evidence = buildEvidence({ profile, program, week, recentWorkouts: workouts, prSignals, readiness });
+  const facts = evidence.map((item) => `${item.label}: ${item.value}`);
+  const modelProgram = program ? {
+    archetypeId: program.archetypeId,
+    currentWeek: program.currentWeek,
+    nextDayName: program.nextDayName,
+    nextWeek: program.nextWeek,
+    completedThisWeek: program.completedThisWeek,
+    daysPerWeek: program.daysPerWeek,
+  } : null;
+  const modelWorkouts = workouts.slice(0, 12).map((workout) => ({
+    date: workout.startedAt.slice(0, 10),
+    dayName: workout.dayName,
+    readinessAtStart: workout.readinessAtStart,
+    volume: workout.volume,
+    sets: workout.sets,
+    durationMin: workout.durationMin,
+  }));
+  const modelPrSignals = prSignals.map((pr) => ({
+    exerciseName: pr.exerciseName,
+    type: pr.type,
+    label: pr.label,
+    value: pr.value,
+    displayValue: pr.displayValue,
+    achievedDate: pr.achievedAt.slice(0, 10),
+  }));
 
   return {
     generatedAt: now.toISOString(),
@@ -337,12 +425,13 @@ export async function buildCoachContextPack(
     prSignals,
     readiness,
     facts,
+    evidence,
     modelContext: {
       profile,
-      program,
+      program: modelProgram,
       currentWeek: week,
-      recentWorkouts: workouts.slice(0, 12),
-      prSignals,
+      recentWorkouts: modelWorkouts,
+      prSignals: modelPrSignals,
       recovery: {
         score: readiness.score,
         readiness: readiness.readiness,

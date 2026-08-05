@@ -48,6 +48,7 @@ function RootStack() {
           <Stack.Screen name="workout-plan-library" />
           <Stack.Screen name="photos" />
           <Stack.Screen name="check-in" />
+          <Stack.Screen name="paywall" />
           <Stack.Screen name="exercise/[id]" />
           <Stack.Screen name="workout-history/[workoutId]" />
           <Stack.Screen name="review" />
