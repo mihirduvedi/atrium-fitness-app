@@ -1,8 +1,21 @@
 import { exerciseCatalog } from '@atrium/engine';
-import { getActiveProgram, getNextProgramDay } from '../db/queries';
+import {
+  getActiveProgram,
+  getInProgressWorkoutOverview,
+  getNextProgramDay,
+  getWorkoutDraft,
+  previewProgramDay,
+} from '../db/queries';
 import type { SqlDb } from '../db/schema';
 import { getReadinessSignal, type ReadinessSignal } from '../health/readiness';
 import { displayWorkoutName, formatWorkoutDayName } from '../workoutNames';
+import {
+  buildCoachProposalSet,
+  coachProposalIdFromPlan,
+  toCoachModelProposalOptions,
+  type CoachModelProposalOption,
+  type CoachProposalSet,
+} from './proposals';
 
 interface WorkoutRow {
   id: string;
@@ -119,6 +132,13 @@ export interface CoachContextPack {
   readiness: ReadinessSignal;
   facts: string[];
   evidence: CoachEvidence[];
+  proposalSet: CoachProposalSet | null;
+  proposalOptions: CoachModelProposalOption[];
+  actionState: {
+    hasActiveWorkout: boolean;
+    activeWorkoutId: string | null;
+    activeProposalId: string | null;
+  };
   modelContext: {
     profile: CoachProfileContext | null;
     program: CoachModelProgramContext | null;
@@ -415,6 +435,24 @@ export async function buildCoachContextPack(
     displayValue: pr.displayValue,
     achievedDate: pr.achievedAt.slice(0, 10),
   }));
+  let proposalSet: CoachProposalSet | null = null;
+  if (next && readiness.readiness !== 'red') {
+    try {
+      proposalSet = buildCoachProposalSet(await previewProgramDay(db, userId, next, readiness.readiness));
+    } catch {
+      proposalSet = null;
+    }
+  }
+  const activeWorkout = await getInProgressWorkoutOverview(db, userId);
+  const activeDraft = activeWorkout ? await getWorkoutDraft(db, activeWorkout.workoutId) : null;
+  const actionState = {
+    hasActiveWorkout: !!activeWorkout,
+    activeWorkoutId: activeWorkout?.workoutId ?? null,
+    activeProposalId: coachProposalIdFromPlan(activeDraft?.plan),
+  };
+  const proposalOptions = activeWorkout || !proposalSet
+    ? []
+    : toCoachModelProposalOptions(proposalSet.options);
 
   return {
     generatedAt: now.toISOString(),
@@ -426,6 +464,9 @@ export async function buildCoachContextPack(
     readiness,
     facts,
     evidence,
+    proposalSet,
+    proposalOptions,
+    actionState,
     modelContext: {
       profile,
       program: modelProgram,

@@ -86,6 +86,21 @@ describe('coach context pack', () => {
       dayName: expect.any(String),
       sets: 1,
     });
+    expect(pack.proposalOptions.length).toBeGreaterThan(0);
+    expect(pack.proposalOptions.length).toBeLessThanOrEqual(3);
+    expect(pack.proposalOptions.every((option) => /^cp_[a-f0-9]{16}$/.test(option.id))).toBe(true);
+    const localTargetSlotId = pack.proposalSet?.options.find((option) => option.targetSlotId)?.targetSlotId;
+    const serializedProviderPayload = JSON.stringify({
+      context: pack.modelContext,
+      proposalOptions: pack.proposalOptions,
+    });
+    expect(serializedProviderPayload).not.toContain(pack.program?.id ?? 'missing-program');
+    if (localTargetSlotId) expect(serializedProviderPayload).not.toContain(localTargetSlotId);
+    expect(pack.actionState).toEqual({
+      hasActiveWorkout: false,
+      activeWorkoutId: null,
+      activeProposalId: null,
+    });
     expect(pack.evidence.map((item) => item.key)).toEqual(expect.arrayContaining([
       'profile',
       'current_week',

@@ -1,4 +1,5 @@
 import type { CoachContextPack, CoachEvidenceKey } from './context';
+import { preferredOfflineProposalId } from './proposals';
 
 export const MAX_COACH_MESSAGE_CHARS = 600;
 export const MAX_COACH_HISTORY_MESSAGES = 6;
@@ -22,6 +23,7 @@ export interface CoachReply {
   boundaryClass: CoachBoundaryClass;
   source: CoachReplySource;
   notice: string | null;
+  proposalId: string | null;
 }
 
 const SAFETY_CLASSES = new Set<CoachSafetyClass>(['standard', 'pain', 'medical', 'nutrition', 'urgent']);
@@ -118,6 +120,7 @@ function safetyReplyForClass(safetyClass: Exclude<CoachSafetyClass, 'standard'>)
       boundaryClass: 'fitness',
       source: 'safety',
       notice: 'Atrium cannot assess an emergency.',
+      proposalId: null,
     };
   }
   if (safetyClass === 'nutrition') {
@@ -129,6 +132,7 @@ function safetyReplyForClass(safetyClass: Exclude<CoachSafetyClass, 'standard'>)
       boundaryClass: 'fitness',
       source: 'safety',
       notice: 'Safety response · no model call made',
+      proposalId: null,
     };
   }
   if (safetyClass === 'pain') {
@@ -140,6 +144,7 @@ function safetyReplyForClass(safetyClass: Exclude<CoachSafetyClass, 'standard'>)
       boundaryClass: 'fitness',
       source: 'safety',
       notice: 'Safety response · no model call made',
+      proposalId: null,
     };
   }
   return {
@@ -150,6 +155,7 @@ function safetyReplyForClass(safetyClass: Exclude<CoachSafetyClass, 'standard'>)
     boundaryClass: 'fitness',
     source: 'safety',
     notice: 'Safety response · no model call made',
+    proposalId: null,
   };
 }
 
@@ -189,6 +195,7 @@ function boundaryReplyForClass(boundaryClass: Exclude<CoachBoundaryClass, 'fitne
     boundaryClass,
     source: 'boundary' as const,
     notice: 'Protected Coach boundary · no model call made',
+    proposalId: null,
   };
   if (boundaryClass === 'secrets') {
     return {
@@ -306,6 +313,13 @@ export function fallbackCoachReply(message: string, pack: CoachContextPack): Coa
     boundaryClass: 'fitness',
     source: 'offline',
     notice: 'On-device guidance · live coach unavailable',
+    proposalId: preferredOfflineProposalId(
+      message,
+      pack.readiness.readiness,
+      (pack.proposalSet?.options ?? []).filter((option) => (
+        pack.proposalOptions.some((candidate) => candidate.id === option.id)
+      )),
+    ),
   };
 }
 
@@ -340,6 +354,10 @@ export function parseCoachReply(value: unknown, pack: CoachContextPack): CoachRe
     : typeof candidate.followUp === 'string' && candidate.followUp.trim()
       ? compactCoachReplyText(candidate.followUp, MAX_COACH_FOLLOW_UP_CHARS)
       : null;
+  const allowedProposalIds = new Set(pack.proposalOptions.map((option) => option.id));
+  const proposalId = typeof candidate.proposalId === 'string' && allowedProposalIds.has(candidate.proposalId)
+    ? candidate.proposalId
+    : null;
   return {
     answer,
     evidenceKeys,
@@ -348,6 +366,7 @@ export function parseCoachReply(value: unknown, pack: CoachContextPack): CoachRe
     boundaryClass,
     source: 'model',
     notice: null,
+    proposalId,
   };
 }
 

@@ -112,6 +112,7 @@ describe.sequential('live AI Coach evaluation', () => {
         history: evalCase.history ?? [],
         context: evalCase.pack.modelContext,
         evidence: evalCase.pack.evidence,
+        proposalOptions: evalCase.pack.proposalOptions,
       }),
     });
     const body = await response.text();
@@ -129,7 +130,7 @@ describe.sequential('live AI Coach evaluation', () => {
     const latency = Date.now() - startedAt;
     latencies.push(latency);
     if (result.passed) passedCases += 1;
-    console.info(`${evalCase.id}\t${latency}ms\t${reply.source}\t${reply.evidenceKeys.join(',') || 'no-evidence'}`);
+    console.info(`${evalCase.id}\t${latency}ms\t${reply.source}\t${reply.evidenceKeys.join(',') || 'no-evidence'}\tproposal=${reply.proposalId ? 'yes' : 'no'}`);
     if (showAnswers) console.info(`  ${reply.answer.replace(/\s+/g, ' ').trim()}`);
     expect(result.passed, formatCoachEvalFailures(result)).toBe(true);
   }, modelRequestMinIntervalMs + requestTimeoutMs + 5_000);

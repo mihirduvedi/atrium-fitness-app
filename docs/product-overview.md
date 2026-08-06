@@ -76,15 +76,20 @@ The current project includes:
 - Progress analytics with selectable 4/12-week period comparisons, exercise-level e1RM changes, workout session drilldowns with set-level detail, and a local-only progress-photo timeline
 - readiness calculated from HealthKit and subjective signals
 - a daily check-in for energy, mood, sleep quality, soreness, and optional body weight that feeds Today and Weekly Review
-- interactive grounded AI Coach chat that starts empty and answers the question first, with evidence labels, a vertical device-local thread menu, confirmed deletion, minimized context, deterministic fitness/privacy/secret/safety boundaries, authenticated rate-limited server inference, an offline fallback, and a fictional-data regression/live evaluation harness, plus Weekly Review
+- interactive grounded AI Coach chat that starts empty and answers the question first, with evidence labels, a vertical device-local thread menu, confirmed deletion, minimized context, deterministic fitness/privacy/secret/safety boundaries, authenticated rate-limited server inference, an offline fallback, validated one-workout proposals that keep the next workout unchanged or remove one or two eligible back-off sets only after explicit Apply, a 35-case fictional-data regression/live evaluation harness, and Weekly Review
 - profile, light/dark appearance, privacy, deferred anonymous auth, and Apple upgrade scaffolding
 - SQLite storage, offline sync, Supabase schema/RLS, progression engine, and shared design tokens
+
+One-workout proposals affect only the newly created workout draft. The Program
+itself remains unchanged, and broader Program mutation is still future work.
+Current automated verification passes 157 mobile tests, 101 engine tests, and
+4 design-token tests (262 total).
 
 ## Future ideas
 
 Potential future directions include:
 
-- live AI Coach evaluation with qualified domain/privacy review, issue reporting, multilingual and obfuscated adversarial coverage, staging security verification, and explicit plan-adjustment tools that remain inside deterministic engine rules
+- live AI Coach evaluation with qualified domain/privacy review, issue reporting, multilingual and obfuscated adversarial coverage, staging security verification, and broader Program-level plan-adjustment tools that remain inside deterministic engine rules
 - deeper recovery-aware Progress insights and body-metric correlations
 - RevenueCat store configuration and native sandbox purchase QA
 - nutrition quick logging only where it strengthens readiness or review

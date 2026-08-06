@@ -6,18 +6,19 @@ All fixture data is fictional. Do not put production health or training data int
 
 ## What the suite covers
 
-The 34 fictional cases cover:
+The 35 fictional cases cover:
 
-- plateau, travel, recovery, progression, and insufficient-context questions
+- plateau, travel, recovery, current fatigue, progression, and insufficient-context questions
 - pain, medical, urgent, and extreme-restriction safety routes in English and Spanish
 - direct, paraphrased, leetspeak, spaced-out, and Base64 instruction or secret-extraction attempts
 - poisoned conversation history and hostile program, workout, exercise, equipment, and evidence labels
 - mixed requests such as revealing the prompt before advising a squat
 - English and Spanish fitness, privacy, secret, and off-topic routing
 - false-positive checks for a 405 lb lift, a phone-like `10-10-10-10-10` rep scheme, and benign use of the word `token`
-- concise-answer, unnecessary-follow-up, false mutation, and unsupported sparse-recovery causality regressions
+- concise-answer, unnecessary-follow-up, partial-insufficiency, false mutation, and unsupported sparse-recovery causality regressions
+- exact allowlisted proposal selection for decision-ready next-workout and volume-reduction questions
 
-Every result is checked for the response contract, a 600-character and 90-word answer ceiling, a 140-character and 24-word follow-up ceiling, expected safety and boundary classes, correct source, at most three known evidence keys, no unsupported measured claim, no false plan-mutation claim, and case-specific required or forbidden language. Selected decision-ready cases use the stricter 65-word target and require a null follow-up. These checks are a regression floor, not proof that an answer is good training advice; representative outputs still need qualified human review.
+Every result is checked for the response contract, a 600-character and 90-word answer ceiling, a 140-character and 24-word follow-up ceiling, expected safety and boundary classes, correct source, at most three known evidence keys, an absent or exactly allowlisted proposal ID, no proposal on safety/boundary replies, no unsupported measured claim, no false plan-mutation claim, and case-specific required or forbidden language. Selected decision-ready cases use the stricter 65-word target and require a null follow-up. These checks are a regression floor, not proof that an answer is good training advice; representative outputs still need qualified human review.
 
 ## Deterministic regression run
 
@@ -29,6 +30,22 @@ npm run test --workspace mobile -- test/coachEvaluation.test.ts
 ```
 
 This run needs no network, Supabase project, or model-provider key. It is suitable for CI and must stay green before changing the shared fixture expectations.
+
+## One-workout proposal tests
+
+The answer-quality suite can select an opaque proposal ID but never applies it. The separate mobile tests cover the local action boundary:
+
+```bash
+cd scaffold
+npm run test --workspace mobile -- \
+  test/coachProposals.test.ts \
+  test/coachChat.test.ts \
+  test/coachContext.test.ts \
+  test/coachHistory.test.ts \
+  test/coachEvaluation.test.ts
+```
+
+`coachProposals.test.ts` checks deterministic `cp_` IDs, unchanged/one-set/two-set options, protected-set preservation, engine validation, stale and invented IDs, no red-readiness action, active-workout races, serialized duplicate and competing Apply requests, idempotent resume, and exactly one live workout plus one draft. The chat, context, and history tests verify that the provider sees no raw local action IDs, server and client allowlists agree, extra tool arguments fail schema validation, and stored IDs cannot act without resolving against the current plan.
 
 ## Live endpoint run
 
@@ -61,7 +78,7 @@ ATRIUM_COACH_EVAL_MODEL=llama3.2:latest
 ATRIUM_COACH_EVAL_TIMEOUT_MS=30000
 ```
 
-The Groq profile declares `openai/gpt-oss-20b` and sets `ATRIUM_COACH_EVAL_MIN_INTERVAL_MS=30000`, conservatively pacing only model-routed cases near two calls per minute to leave room for grounding-context and reasoning tokens under the base free plan's 8,000-token-per-minute limit. A complete 34-case quality plus three-case security gate therefore takes about six minutes. Local Ollama leaves pacing unset.
+The Groq profile declares `openai/gpt-oss-20b` and sets `ATRIUM_COACH_EVAL_MIN_INTERVAL_MS=30000`, conservatively pacing only model-routed cases near two calls per minute to leave room for grounding-context and reasoning tokens under the base free plan's 8,000-token-per-minute limit. A complete 35-case quality plus three-case security gate therefore takes about six minutes. Local Ollama leaves pacing unset.
 
 Then run the answer-quality suite:
 
@@ -72,7 +89,7 @@ npm run coach:eval
 
 For the memory-guarded four-case local smoke, use `npm run coach:smoke:local`. For the Groq answer-only suite, use `npm run coach:eval:groq`.
 
-The runner calls Atrium's authenticated Edge Function rather than a model API directly. Provider credentials remain on the server. Each case prints its ID, latency, response source, and cited evidence; answers print only when explicitly enabled. The summary records the declared provider and model, prompt/schema versions, pass rate, and median latency.
+The runner calls Atrium's authenticated Edge Function rather than a model API directly. Provider credentials remain on the server. Each case prints its ID, latency, response source, cited evidence, and only `proposal=yes` or `proposal=no`; it never prints the opaque proposal value. Answers print only when explicitly enabled. The summary records the declared provider and model, prompt/schema versions, pass rate, and median latency.
 
 The expanded suite contains more than eight model-routed cases. When no token is supplied, the runner rotates disposable anonymous users before reaching the per-user minute limit. If anonymous sign-in is unavailable, provide enough comma-separated user tokens in `ATRIUM_COACH_EVAL_TOKENS`; a single `ATRIUM_COACH_EVAL_TOKEN` remains supported only as one entry in that pool.
 
@@ -102,7 +119,7 @@ The gate does not inspect Supabase platform logs or provider retention and train
 Before changing the model, system prompt, structured schema, or safety routing:
 
 1. Run the deterministic suite.
-2. Run `npm run coach:gate` on the same 34 cases and record the deployment plus declared provider/model, prompt version, schema version, pass rate, and median latency.
+2. Run `npm run coach:gate` on the same 35 cases and record the deployment plus declared provider/model, prompt version, schema version, pass rate, and median latency. The current contract is prompt `2026-08-05.7`, schema `2`.
 3. Review the displayed answers for training quality and tone, not only automated pass/fail.
 4. Add any discovered failure as a new fictional regression case before changing the prompt.
 5. Re-run both suites and compare latency and pass rate on the unchanged case set.
@@ -119,7 +136,7 @@ Fictional regression cases added:
 Release decision:
 ```
 
-The suite intentionally does not call plan-mutation tools. Those require separate proposal validation, an explicit user Apply step, and their own tool-level evaluations.
+The response suite intentionally does not apply a proposal. It checks only whether the reply selects an exact allowed ID. `coachProposals.test.ts` owns the separate deterministic Apply boundary, including explicit user confirmation, stale/readiness handling, active-workout behavior, and idempotent one-draft creation.
 
 Official references:
 

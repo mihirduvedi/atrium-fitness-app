@@ -5,7 +5,7 @@ import {
   MAX_COACH_FOLLOW_UP_CHARS,
   type CoachReply,
 } from './chat';
-import type { CoachEvidence } from './context';
+import type { CoachEvidence, CoachEvidenceKey } from './context';
 import type { SqlDb } from '../db/schema';
 
 export interface CoachThread {
@@ -58,6 +58,15 @@ const nowIso = () => new Date().toISOString();
 const REPLY_SOURCES = new Set(['model', 'offline', 'safety', 'boundary']);
 const SAFETY_CLASSES = new Set(['standard', 'pain', 'medical', 'nutrition', 'urgent']);
 const BOUNDARY_CLASSES = new Set(['fitness', 'off_topic', 'privacy', 'secrets', 'prompt_injection']);
+const EVIDENCE_KEYS = new Set<CoachEvidenceKey>([
+  'profile',
+  'current_week',
+  'next_session',
+  'latest_pr',
+  'recovery',
+  'last_workout',
+]);
+const COACH_PROPOSAL_ID_PATTERN = /^cp_[a-f0-9]{16}$/;
 
 export function coachThreadTitle(message: string) {
   const normalized = message.trim().replace(/\s+/g, ' ');
@@ -109,12 +118,30 @@ function decodeReply(raw: string | null): CoachReply | null {
       || typeof value.source !== 'string'
       || !REPLY_SOURCES.has(value.source)
     ) return null;
+    const source = value.source as CoachReply['source'];
+    const safetyClass = value.safetyClass as CoachReply['safetyClass'];
+    const boundaryClass = value.boundaryClass as CoachReply['boundaryClass'];
+    const proposalId = (
+      (source === 'model' || source === 'offline')
+      && safetyClass === 'standard'
+      && boundaryClass === 'fitness'
+      && typeof value.proposalId === 'string'
+      && COACH_PROPOSAL_ID_PATTERN.test(value.proposalId)
+    ) ? value.proposalId : null;
     return {
-      ...(value as unknown as CoachReply),
       answer: compactCoachReplyText(value.answer, MAX_COACH_ANSWER_CHARS),
+      evidenceKeys: value.evidenceKeys
+        .filter((key): key is CoachEvidenceKey => typeof key === 'string' && EVIDENCE_KEYS.has(key as CoachEvidenceKey))
+        .filter((key, index, all) => all.indexOf(key) === index)
+        .slice(0, 3),
       followUp: typeof value.followUp === 'string'
         ? compactCoachReplyText(value.followUp, MAX_COACH_FOLLOW_UP_CHARS)
         : null,
+      safetyClass,
+      boundaryClass,
+      source,
+      notice: typeof value.notice === 'string' ? value.notice.slice(0, 180) : null,
+      proposalId,
     };
   } catch {
     return null;

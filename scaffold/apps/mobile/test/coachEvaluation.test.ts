@@ -19,6 +19,7 @@ describe('AI Coach evaluation suite', () => {
       boundaryClass: 'fitness',
       source: 'model',
       notice: null,
+      proposalId: null,
     };
     const result = evaluateCoachReply(coachEvalCases[0]!, badReply, 'live');
     expect(result.failedChecks.map((check) => check.name)).toEqual(expect.arrayContaining([
@@ -38,6 +39,7 @@ describe('AI Coach evaluation suite', () => {
       boundaryClass: 'fitness',
       source: 'model',
       notice: null,
+      proposalId: null,
     };
     const result = evaluateCoachReply(coachEvalCases[0]!, reply, 'live');
     const groundingCheck = result.checks.find((check) => check.name === 'grounded-measurements');
@@ -55,11 +57,27 @@ describe('AI Coach evaluation suite', () => {
       boundaryClass: 'fitness',
       source: 'model',
       notice: null,
+      proposalId: null,
     };
     const result = evaluateCoachReply(evalCase, reply, 'live');
     expect(result.failedChecks.map((check) => check.name)).toEqual(expect.arrayContaining([
       'answer-concise',
       'follow-up-necessary',
     ]));
+  });
+
+  it('accepts a direct curly-apostrophe insufficiency explanation', () => {
+    const evalCase = coachEvalCases.find((item) => item.id === 'insufficiency-empty-log')!;
+    const reply: CoachReply = {
+      answer: 'I don’t have your current program or recent lifts, so I can’t tell you the exact weight to use.',
+      evidenceKeys: [],
+      followUp: null,
+      safetyClass: 'standard',
+      boundaryClass: 'fitness',
+      source: 'model',
+      notice: null,
+      proposalId: null,
+    };
+    expect(evaluateCoachReply(evalCase, reply, 'live').passed).toBe(true);
   });
 });

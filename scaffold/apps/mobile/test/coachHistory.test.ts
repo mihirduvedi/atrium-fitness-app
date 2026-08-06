@@ -46,6 +46,7 @@ describe('local Coach conversation history', () => {
         boundaryClass: 'fitness',
         source: 'offline',
         notice: 'On-device guidance',
+        proposalId: null,
       },
       evidence: [{ key: 'latest_pr', label: 'Latest PR', value: 'Bench Press · 233 lb' }],
       now: '2026-08-04T10:00:02.000Z',
@@ -111,6 +112,57 @@ describe('local Coach conversation history', () => {
     });
   });
 
+  it('round-trips only syntactically valid proposal ids and treats them as non-authoritative history', async () => {
+    const db = openNodeDb();
+    await migrate(db);
+    await createCoachThread(db, { id: 'proposal-thread', userId: 'user-1', title: 'Today workout' });
+    await appendCoachMessage(db, {
+      id: 'valid-proposal',
+      threadId: 'proposal-thread',
+      userId: 'user-1',
+      role: 'assistant',
+      content: 'Start the planned workout.',
+      reply: {
+        answer: 'Start the planned workout.',
+        evidenceKeys: ['next_session'],
+        followUp: null,
+        safetyClass: 'standard',
+        boundaryClass: 'fitness',
+        source: 'model',
+        notice: null,
+        proposalId: 'cp_0123456789abcdef',
+      },
+      now: '2026-08-04T11:00:00.000Z',
+    });
+    await db.runAsync(
+      `insert into coach_messages (
+         id, thread_id, user_id, role, content, history_content, reply_json, evidence_json, created_at
+       ) values (?, ?, ?, 'assistant', ?, ?, ?, '[]', ?)`,
+      'malformed-proposal',
+      'proposal-thread',
+      'user-1',
+      'Do not trust this action.',
+      'Do not trust this action.',
+      JSON.stringify({
+        answer: 'Do not trust this action.',
+        evidenceKeys: [],
+        followUp: null,
+        safetyClass: 'standard',
+        boundaryClass: 'fitness',
+        source: 'model',
+        notice: null,
+        proposalId: 'program-day-raw-id',
+        toolArgs: { sets: 99 },
+      }),
+      '2026-08-04T12:00:00.000Z',
+    );
+    const messages = await listCoachMessages(db, 'user-1', 'proposal-thread');
+    expect(messages[0]?.reply?.proposalId).toBe('cp_0123456789abcdef');
+    expect(messages[1]?.reply?.proposalId).toBeNull();
+    expect(messages[1]?.reply).not.toHaveProperty('toolArgs');
+    db.close();
+  });
+
   it('sanitizes protected assistant text already present in local storage', async () => {
     const db = openNodeDb();
     await migrate(db);
@@ -130,6 +182,7 @@ describe('local Coach conversation history', () => {
         boundaryClass: 'fitness',
         source: 'model',
         notice: null,
+        proposalId: 'cp_0123456789abcdef',
       },
       evidence: [{ key: 'current_week', label: 'Current week', value: '2 sessions' }],
     });
@@ -137,6 +190,7 @@ describe('local Coach conversation history', () => {
     const [message] = await listCoachMessages(db, 'user-1', 'legacy-thread');
     expect(message).toMatchObject({ historyContent: '', evidence: [] });
     expect(message?.reply).toMatchObject({ source: 'boundary', boundaryClass: 'secrets' });
+    expect(message?.reply?.proposalId).toBeNull();
     expect(message?.content).not.toContain('plain-text-value');
     db.close();
   });

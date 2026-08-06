@@ -36,6 +36,7 @@ function requestBody() {
     history: [],
     context: trainedCoachEvalPack.modelContext,
     evidence: trainedCoachEvalPack.evidence,
+    proposalOptions: trainedCoachEvalPack.proposalOptions,
   };
 }
 

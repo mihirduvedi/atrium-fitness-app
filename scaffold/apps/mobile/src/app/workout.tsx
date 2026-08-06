@@ -27,6 +27,7 @@ import {
 } from '@/db/queries';
 import { borderWidth, radius, space, useTheme } from '@/theme';
 import { sanitizeDecimalInput, sanitizeWholeNumberInput } from '@/numericInput';
+import { getReadinessSignal } from '@/health/readiness';
 import {
   completedWorkoutQueuePrefixLength,
   constrainWorkoutQueueTarget,
@@ -466,7 +467,7 @@ function TimelineFloatingRow({
 export default function WorkoutScreen() {
   const t = useTheme();
   const { db, userId, newId, sync, pendingWorkoutMovement, clearPendingWorkoutMovement } = useApp();
-  const params = useLocalSearchParams<{ readiness?: Readiness; workoutId?: string }>();
+  const params = useLocalSearchParams<{ readiness?: string; workoutId?: string }>();
 
   const [day, setDay] = useState<NextDay | null>(null);
   const [plan, setPlan] = useState<SessionPlan | null>(null);
@@ -492,6 +493,11 @@ export default function WorkoutScreen() {
   // boot: resume an unfinished draft first; otherwise plan a fresh session.
   useEffect(() => {
     let live = true;
+    const routeReadiness: Readiness | null = params.readiness === 'green'
+      || params.readiness === 'yellow'
+      || params.readiness === 'red'
+      ? params.readiness
+      : null;
     draftReady.current = false;
 
     const exerciseNameMap = (rows: Awaited<ReturnType<typeof listExercises>>) =>
@@ -536,7 +542,8 @@ export default function WorkoutScreen() {
 
       const context = existing.programDayId ? await getProgramDayContext(db, existing.programDayId) : null;
       if (!context) return false;
-      const sessionPlan = await planSession(db, userId, context, newId, params.readiness ?? 'green');
+      const readiness = routeReadiness ?? (await getReadinessSignal(db, userId)).readiness;
+      const sessionPlan = await planSession(db, userId, context, newId, readiness);
       const ui = initialSetUiForPlan(sessionPlan);
       await saveWorkoutDraft(db, {
         workoutId: existing.workoutId,
@@ -558,7 +565,7 @@ export default function WorkoutScreen() {
       const exerciseRows = await listExercises(db, userId);
       const names = exerciseNameMap(exerciseRows);
       const requestedWorkoutId = typeof params.workoutId === 'string' ? params.workoutId : null;
-      const requestedWorkout = requestedWorkoutId ? await getWorkoutOverview(db, requestedWorkoutId) : null;
+      const requestedWorkout = requestedWorkoutId ? await getWorkoutOverview(db, requestedWorkoutId, userId) : null;
       const existingWorkout = requestedWorkout ?? await getInProgressWorkoutOverview(db, userId);
       if (existingWorkout) {
         await discardEmptyInProgressWorkouts(db, userId, newId, existingWorkout.workoutId);
@@ -569,9 +576,16 @@ export default function WorkoutScreen() {
       if (!program) return;
       const next = await getNextProgramDay(db, program.id);
       if (!next) return;
-      const p = await planSession(db, userId, next, newId, params.readiness ?? 'green');
-      const wid = await startWorkout(db, userId, next.dayId, newId);
-      const overview = await getWorkoutOverview(db, wid);
+      const readinessSignal = await getReadinessSignal(db, userId);
+      const readiness = routeReadiness ?? readinessSignal.readiness;
+      const wid = await startWorkout(db, userId, next.dayId, newId, readinessSignal.score);
+      const overview = await getWorkoutOverview(db, wid, userId);
+      if (!overview) return;
+      if (overview.programDayId !== next.dayId) {
+        await openExistingWorkout(overview, names);
+        return;
+      }
+      const p = await planSession(db, userId, next, newId, readiness);
       const ui = initialSetUiForPlan(p);
       await saveWorkoutDraft(db, {
         workoutId: wid,
@@ -1031,18 +1045,36 @@ export default function WorkoutScreen() {
                 onPress={() => router.push({ pathname: '/exercise/[id]', params: { id: active.exerciseId } })}
                 style={{ flex: 1, minWidth: 0 }}
               >
-                <Text style={t.text('displayS')} numberOfLines={1} adjustsFontSizeToFit>
+                <Text style={t.text('displayS')} numberOfLines={2}>
                   {activeExerciseName}
                 </Text>
               </Pressable>
-            </View>
-            {!activeDone && (
-              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: space[2], marginTop: space[2] }}>
-                {activeIndex < plan.prescriptions.length - 1 && (
+              {!activeDone && (
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: space[2] }}>
+                  {activeIndex < plan.prescriptions.length - 1 && (
+                    <Pressable
+                      onPress={skipMovement}
+                      accessibilityRole="button"
+                      accessibilityLabel="Skip exercise"
+                      style={{
+                        minWidth: 62,
+                        height: 32,
+                        borderRadius: radius.control,
+                        borderWidth: borderWidth.hairline,
+                        borderColor: t.colors.borderStrong,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Text style={t.text('bodyS', 'textMuted')}>Skip</Text>
+                    </Pressable>
+                  )}
                   <Pressable
-                    onPress={skipMovement}
+                    onPress={finishExercise}
+                    accessibilityRole="button"
+                    accessibilityLabel="Finish exercise"
                     style={{
-                      minWidth: 62,
+                      minWidth: 112,
                       height: 32,
                       borderRadius: radius.control,
                       borderWidth: borderWidth.hairline,
@@ -1051,27 +1083,11 @@ export default function WorkoutScreen() {
                       justifyContent: 'center',
                     }}
                   >
-                    <Text style={t.text('bodyS', 'textMuted')}>Skip</Text>
+                    <Text style={t.text('bodyS')}>Finish Exercise</Text>
                   </Pressable>
-                )}
-                <Pressable
-                  onPress={finishExercise}
-                  accessibilityRole="button"
-                  accessibilityLabel="Finish exercise"
-                  style={{
-                    minWidth: 112,
-                    height: 32,
-                    borderRadius: radius.control,
-                    borderWidth: borderWidth.hairline,
-                    borderColor: t.colors.borderStrong,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <Text style={t.text('bodyS')}>Finish Exercise</Text>
-                </Pressable>
-              </View>
-            )}
+                </View>
+              )}
+            </View>
             <Text style={[t.text('bodyS', 'textMuted'), { marginTop: 3, marginBottom: 13 }]}>
               {activeGuide}
             </Text>

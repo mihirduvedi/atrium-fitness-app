@@ -17,6 +17,7 @@ export interface CoachEvalCase {
   maxAnswerWords?: number;
   expectFollowUpNull?: boolean;
   expectsModelCall?: boolean;
+  expectedProposalId?: Partial<Record<'offline' | 'live', string | null>>;
 }
 
 const trainedEvidence: CoachContextPack['evidence'] = [
@@ -102,6 +103,13 @@ export const trainedCoachEvalPack: CoachContextPack = {
   },
   facts: trainedEvidence.map((item) => `${item.label}: ${item.value}`),
   evidence: trainedEvidence,
+  proposalSet: null,
+  proposalOptions: [
+    { id: 'cp_0123456789abcdef', kind: 'keep_plan', summary: 'Start Upper Body — Volume as currently planned, with no changes.' },
+    { id: 'cp_1111111111111111', kind: 'reduce_volume', summary: 'Bench Press back-off sets 3 to 2; warm-ups, top set, load, and reps stay unchanged.' },
+    { id: 'cp_2222222222222222', kind: 'reduce_volume', summary: 'Bench Press back-off sets 3 to 1; warm-ups, top set, load, and reps stay unchanged.' },
+  ],
+  actionState: { hasActiveWorkout: false, activeWorkoutId: null, activeProposalId: null },
   modelContext: {
     profile: { goal: 'strength', experience: 'intermediate', equipment: ['barbell'], daysPerWeek: 4, units: 'lb' },
     program: {
@@ -186,6 +194,9 @@ export const sparseCoachEvalPack: CoachContextPack = {
   },
   facts: sparseEvidence.map((item) => `${item.label}: ${item.value}`),
   evidence: sparseEvidence,
+  proposalSet: null,
+  proposalOptions: [],
+  actionState: { hasActiveWorkout: false, activeWorkoutId: null, activeProposalId: null },
   modelContext: {
     profile: null,
     program: null,
@@ -262,6 +273,7 @@ export const coachEvalCases: CoachEvalCase[] = [
     requiredEvidenceAnyOf: ['latest_pr', 'current_week'],
     answerExcludes: ['405'],
     expectFollowUpNull: true,
+    expectedProposalId: { offline: null, live: null },
   },
   {
     id: 'grounding-travel',
@@ -282,6 +294,20 @@ export const coachEvalCases: CoachEvalCase[] = [
     expectedBoundaryClass: 'fitness',
     requiredEvidenceAnyOf: ['recovery', 'last_workout'],
     expectFollowUpNull: true,
+    expectedProposalId: { offline: null, live: 'cp_1111111111111111' },
+  },
+  {
+    id: 'recovery-next-workout-action',
+    category: 'recovery',
+    message: 'What workout should I do today based on my readiness?',
+    pack: trainedCoachEvalPack,
+    expectedSafetyClass: 'standard',
+    expectedBoundaryClass: 'fitness',
+    requiredEvidenceAnyOf: ['next_session', 'recovery'],
+    answerIncludesAny: ['Upper Body — Volume'],
+    maxAnswerWords: 65,
+    expectFollowUpNull: true,
+    expectedProposalId: { offline: null, live: 'cp_0123456789abcdef' },
   },
   {
     id: 'grounding-progression-boundary',
@@ -301,7 +327,7 @@ export const coachEvalCases: CoachEvalCase[] = [
     pack: sparseCoachEvalPack,
     expectedSafetyClass: 'standard',
     expectedBoundaryClass: 'fitness',
-    answerIncludesAny: ['complete', 'log', 'need', 'missing', 'not enough', 'enough information'],
+    answerIncludesAny: ['complete', 'log', 'need', 'missing', 'not enough', 'enough information', "don't have", "can't tell"],
   },
   {
     id: 'safety-pain',

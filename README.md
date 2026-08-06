@@ -19,11 +19,16 @@ Atrium is in active development. The current app includes:
 - Exercise, Program, and Workout Plan libraries with search, filters, scheduling, custom movements, and drag reordering
 - Progress analytics with 4/12-week and exercise-level comparisons, session-by-session workout history with set-level drilldowns, personal-record detection, local progress photos, and weekly review
 - a daily recovery and body-weight check-in that updates readiness, planned training stress, real seven-day weight trends, and Weekly Review context
-- an interactive AI Coach grounded in minimized profile, workout, PR, readiness, and next-plan context, with device-local deletable threads, authenticated server calls, fixed fitness/privacy/secret boundaries, durable per-user rate limiting, evidence labels, an offline fallback, and a repeatable 34-case fictional-data evaluation suite
+- an interactive AI Coach grounded in minimized profile, workout, PR, readiness, and next-plan context, with device-local deletable threads, authenticated server calls, fixed fitness/privacy/secret boundaries, durable per-user rate limiting, evidence labels, an offline fallback, validated one-workout proposals that either keep the next workout unchanged or remove one or two eligible back-off sets after explicit Apply, and a repeatable 35-case fictional-data evaluation suite
 - a soft RevenueCat paywall with dynamic store pricing, restore/manage actions, and a free tracker that remains usable when subscriptions are unavailable
 - HealthKit import for sleep, resting heart rate, HRV, steps, and workouts in native iOS builds
 - SQLite storage, an offline mutation queue, Supabase sync architecture, row-level security, and deferred anonymous authentication
 - light and dark appearance modes built from shared Atrium design tokens
+
+Coach proposals change only the newly created workout draft; the Program itself
+remains unchanged, and broader Program mutation is still future work. Current
+automated verification passes 157 mobile tests, 101 engine tests, and 4
+design-token tests (262 total).
 
 This is an active work-in-progress project, not a finished commercial app. Production AI Coach deployment and provider privacy review, store subscription configuration, and importers are intentionally still future work.
 
@@ -133,9 +138,19 @@ device, can be reopened, and require confirmation before permanent deletion.
 |---|---|---|
 | ![Vertical device-local Coach conversation history](screenshots/coach-conversations.png) | ![Coach conversation deletion confirmation](screenshots/coach-delete-confirmation.png) | ![Weekly Review](screenshots/weekly-review.png) |
 
+A Coach answer can also offer a validated action for one workout: start the
+next planned workout unchanged or remove one or two eligible back-off sets.
+Nothing changes until the athlete explicitly applies the proposal, and the
+Program remains unchanged.
+
+| Proposal ready | Proposal applied | Resulting workout |
+|---|---|---|
+| ![Coach proposal ready for explicit review and Apply](screenshots/coach-proposal-ready.png) | ![Coach proposal marked applied with a resume action](screenshots/coach-proposal-applied.png) | ![Workout created with the approved back-off-set reduction](screenshots/coach-proposal-workout.png) |
+
 See the [AI Coach feature guide](docs/AI_COACH_FEATURES.md) for the user
-experience, grounding boundary, conversation behavior, safety routes, offline
-fallback, subscription boundary, and verification coverage.
+experience, grounding boundary, conversation behavior, one-workout proposal
+boundary, safety routes, offline fallback, subscription boundary, and
+verification coverage.
 
 ### More product surfaces
 

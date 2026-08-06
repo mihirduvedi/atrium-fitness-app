@@ -1464,7 +1464,11 @@ export async function getProgramDayContext(db: SqlDb, programDayId: string): Pro
   };
 }
 
-export async function getWorkoutOverview(db: SqlDb, workoutId: string): Promise<InProgressWorkoutOverview | null> {
+export async function getWorkoutOverview(
+  db: SqlDb,
+  workoutId: string,
+  userId?: string,
+): Promise<InProgressWorkoutOverview | null> {
   return db.getFirstAsync<InProgressWorkoutOverview>(
     `select w.id as workoutId,
             w.program_day_id as programDayId,
@@ -1476,9 +1480,14 @@ export async function getWorkoutOverview(db: SqlDb, workoutId: string): Promise<
        from workouts w
        left join program_days d on d.id = w.program_day_id
        left join sets s on s.workout_id = w.id and s.deleted_at is null
-      where w.id = ? and w.ended_at is null and w.deleted_at is null
+      where w.id = ?
+        and (? is null or w.user_id = ?)
+        and w.ended_at is null
+        and w.deleted_at is null
       group by w.id, w.program_day_id, w.started_at, d.name, w.notes, w.updated_at`,
     workoutId,
+    userId ?? null,
+    userId ?? null,
   );
 }
 
@@ -1504,6 +1513,28 @@ export async function getInProgressWorkoutOverview(db: SqlDb, userId: string): P
 
 export async function getInProgressWorkout(db: SqlDb, userId: string): Promise<string | null> {
   return (await getInProgressWorkoutOverview(db, userId))?.workoutId ?? null;
+}
+
+export interface StartWorkoutResult {
+  workoutId: string;
+  created: boolean;
+}
+
+const workoutStartTails = new WeakMap<SqlDb, Map<string, Promise<void>>>();
+
+function serializeWorkoutStart<T>(db: SqlDb, userId: string, operation: () => Promise<T>): Promise<T> {
+  let dbTails = workoutStartTails.get(db);
+  if (!dbTails) {
+    dbTails = new Map();
+    workoutStartTails.set(db, dbTails);
+  }
+  const previous = dbTails.get(userId) ?? Promise.resolve();
+  const result = previous.catch(() => {}).then(operation);
+  const tail = result.then(() => {}, () => {});
+  dbTails.set(userId, tail);
+  return result.finally(() => {
+    if (dbTails?.get(userId) === tail) dbTails.delete(userId);
+  });
 }
 
 export async function discardEmptyInProgressWorkouts(
@@ -1536,6 +1567,34 @@ export async function discardEmptyInProgressWorkouts(
   return rows.length;
 }
 
+export function startWorkoutWithStatus(
+  db: SqlDb,
+  userId: string,
+  programDayId: string,
+  idFn: IdFn,
+  readinessScore?: number,
+): Promise<StartWorkoutResult> {
+  return serializeWorkoutStart(db, userId, async () => {
+    const existing = await getInProgressWorkoutOverview(db, userId);
+    if (existing) return { workoutId: existing.workoutId, created: false };
+
+    const id = idFn();
+    const ts = nowIso();
+    await upsertWithMutation(db, 'workouts', {
+      id,
+      user_id: userId,
+      program_day_id: programDayId,
+      started_at: ts,
+      ended_at: null,
+      notes: null,
+      readiness_at_start: readinessScore ?? null,
+      updated_at: ts,
+      deleted_at: null,
+    }, idFn);
+    return { workoutId: id, created: true };
+  });
+}
+
 export async function startWorkout(
   db: SqlDb,
   userId: string,
@@ -1543,23 +1602,7 @@ export async function startWorkout(
   idFn: IdFn,
   readinessScore?: number,
 ): Promise<string> {
-  const existing = await getInProgressWorkoutOverview(db, userId);
-  if (existing) return existing.workoutId;
-
-  const id = idFn();
-  const ts = nowIso();
-  await upsertWithMutation(db, 'workouts', {
-    id,
-    user_id: userId,
-    program_day_id: programDayId,
-    started_at: ts,
-    ended_at: null,
-    notes: null,
-    readiness_at_start: readinessScore ?? null,
-    updated_at: ts,
-    deleted_at: null,
-  }, idFn);
-  return id;
+  return (await startWorkoutWithStatus(db, userId, programDayId, idFn, readinessScore)).workoutId;
 }
 
 export async function renameWorkout(db: SqlDb, workoutId: string, name: string | null, idFn: IdFn): Promise<void> {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nextPrescription, validateChange, type SessionPlan } from '../src';
+import { nextPrescription, renderWarmups, validateChange, type SessionPlan } from '../src';
 import { makeSlot } from './helpers';
 
 function plan(): SessionPlan {
@@ -52,6 +52,13 @@ describe('validateChange — the LLM gate (safety_bounds.hard_rule)', () => {
     const cur = plan();
     const ok = mutate(cur, (d) => (d.prescriptions[1]!.sets[0]!.targetReps = [2, 5]));
     expect(validateChange(ok, cur)).toMatchObject({ ok: true });
+  });
+
+  it('does not apply work-set rep or weekly-volume bounds to warm-ups', () => {
+    const cur = renderWarmups(plan());
+    expect(cur.prescriptions[0]!.sets.some((set) => set.isWarmup && set.targetReps[0] === 1)).toBe(true);
+    expect(validateChange(structuredClone(cur), cur, { weeklySetsByPattern: { hpress: 18 } }))
+      .toMatchObject({ ok: true });
   });
 
   it('rejects proposals that invent slots', () => {

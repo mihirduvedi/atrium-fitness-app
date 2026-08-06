@@ -1,7 +1,7 @@
 import { router, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useCallback, useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '@/AppContext';
 import {
@@ -18,6 +18,11 @@ import {
   type CoachReply,
 } from '@/coach/chat';
 import { askCoach } from '@/coach/service';
+import {
+  resolveCoachProposal,
+  startCoachProposalWorkout,
+  type CoachProposalOption,
+} from '@/coach/proposals';
 import {
   appendCoachMessage,
   coachHistoryInputPolicy,
@@ -48,6 +53,12 @@ interface CoachUiMessage {
   historyContent?: string;
   reply?: CoachReply;
   evidence?: CoachEvidence[];
+}
+
+interface ProposalUiState {
+  status: 'starting' | 'applied' | 'stale' | 'error';
+  workoutId?: string;
+  detail?: string;
 }
 
 function Chip({ children }: { children: string }) {
@@ -123,6 +134,150 @@ function ReplyEvidence({ reply, evidence }: { reply: CoachReply; evidence: Coach
         </Text>
       ))}
       {reply.notice && <Text style={t.text('bodyS', 'textFaint')}>{reply.notice}</Text>}
+    </View>
+  );
+}
+
+function CoachProposalCard({
+  activeWorkoutId,
+  applied,
+  blocked,
+  onResume,
+  onStart,
+  option,
+  state,
+}: {
+  activeWorkoutId: string | null;
+  applied: boolean;
+  blocked: boolean;
+  onResume: (workoutId: string) => void;
+  onStart: () => void;
+  option: CoachProposalOption;
+  state?: ProposalUiState;
+}) {
+  const t = useTheme();
+  const starting = state?.status === 'starting';
+  const stale = state?.status === 'stale';
+  const error = state?.status === 'error';
+  const isApplied = applied || state?.status === 'applied';
+  const resumeWorkoutId = state?.workoutId ?? activeWorkoutId;
+  const reduced = option.kind === 'reduce_volume';
+  const statusLabel = isApplied ? 'Applied' : stale ? 'Plan changed' : blocked ? 'Workout active' : 'Ready to review';
+  const statusColor = isApplied ? t.colors.dataBlue : stale || error ? t.colors.dataCoral : t.colors.textMuted;
+  const actionTitle = isApplied
+    ? 'Resume workout'
+    : blocked
+      ? 'Resume active workout'
+      : starting
+        ? 'Starting…'
+        : option.actionLabel;
+  const canResume = !!resumeWorkoutId && (isApplied || blocked);
+  const disabled = starting || stale || (!canResume && blocked);
+
+  return (
+    <View
+      style={{
+        alignSelf: 'stretch',
+        borderWidth: borderWidth.hairline,
+        borderColor: stale || error ? t.colors.dataCoral : t.colors.borderStrong,
+        borderRadius: radius.card,
+        backgroundColor: t.colors.bgSurface,
+        padding: space[4],
+        gap: space[3],
+      }}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: space[3] }}>
+        <View style={{ flex: 1 }}>
+          <Text accessibilityRole="header" style={t.text('labelCaps', 'textMuted')}>Proposed for next workout</Text>
+          <Text style={[t.text('bodyM'), { marginTop: 4 }]}>{option.title}</Text>
+        </View>
+        <View
+          style={{
+            borderWidth: borderWidth.hairline,
+            borderColor: statusColor,
+            borderRadius: radius.control,
+            paddingHorizontal: 9,
+            paddingVertical: 5,
+          }}
+        >
+          <Text style={[t.text('labelCaps'), { color: statusColor }]}>{statusLabel}</Text>
+        </View>
+      </View>
+
+      <View
+        accessible
+        accessibilityLabel={reduced
+          ? `${option.exerciseName ?? 'Primary lift'} back-off sets reduced from ${option.beforeBackoffSets} to ${option.afterBackoffSets}`
+          : 'Working plan, no changes'}
+        style={{
+          minHeight: 48,
+          borderTopWidth: borderWidth.hairline,
+          borderBottomWidth: borderWidth.hairline,
+          borderColor: t.colors.borderHairline,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: space[3],
+          paddingVertical: space[2],
+        }}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={t.text('bodyM')}>{reduced ? option.exerciseName : 'Working plan'}</Text>
+          <Text style={t.text('bodyS', 'textMuted')}>{reduced ? 'Back-off sets' : 'Programmed session'}</Text>
+        </View>
+        <Text style={[t.text('bodyM'), reduced ? { color: t.colors.dataCoral } : { color: t.colors.textMuted }]}>
+          {reduced ? `${option.beforeBackoffSets}  →  ${option.afterBackoffSets}` : 'No changes'}
+        </Text>
+      </View>
+
+      <Text style={t.text('bodyS', 'textMuted')}>
+        {reduced
+          ? 'Warm-ups, top set, load, reps, and the rest of the session stay unchanged.'
+          : 'Atrium will rebuild this workout from the latest plan before it starts.'}
+      </Text>
+
+      {blocked && !isApplied && (
+        <Text accessibilityLiveRegion="polite" style={t.text('bodyS', 'dataCoral')}>
+          Another workout is already active. Finish or discard it before applying this proposal.
+        </Text>
+      )}
+      {stale && (
+        <Text accessibilityLiveRegion="polite" style={t.text('bodyS', 'dataCoral')}>
+          Your plan or readiness changed. Ask Coach again for a current proposal.
+        </Text>
+      )}
+      {error && (
+        <Text accessibilityLiveRegion="polite" style={t.text('bodyS', 'dataCoral')}>
+          {state?.detail ?? 'The workout could not be started. Try again.'}
+        </Text>
+      )}
+
+      {!stale && (
+        <Pressable
+          accessibilityHint={canResume ? 'Opens the active workout.' : 'Revalidates this exact proposal, creates one workout draft, and opens it.'}
+          accessibilityLabel={actionTitle}
+          accessibilityRole="button"
+          accessibilityState={{ busy: starting, disabled }}
+          disabled={disabled}
+          onPress={() => {
+            if (canResume && resumeWorkoutId) onResume(resumeWorkoutId);
+            else onStart();
+          }}
+          style={({ pressed }) => ({
+            minHeight: 48,
+            borderRadius: radius.control,
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexDirection: 'row',
+            gap: space[2],
+            backgroundColor: t.colors.actionInk,
+            opacity: disabled ? 0.38 : pressed ? 0.72 : 1,
+          })}
+        >
+          {starting && <ActivityIndicator color={t.colors.actionOnInk} size="small" />}
+          <Text style={t.text('button', 'actionOnInk')}>{actionTitle}</Text>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -352,6 +507,8 @@ function CoachContent() {
   const [busy, setBusy] = useState(false);
   const [conversationDrawerOpen, setConversationDrawerOpen] = useState(false);
   const [storageNotice, setStorageNotice] = useState<string | null>(null);
+  const [proposalStates, setProposalStates] = useState<Record<string, ProposalUiState>>({});
+  const startingProposalRef = useRef(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -387,6 +544,56 @@ function CoachContent() {
     setThreads(recent);
     return recent;
   }, [db, userId]);
+
+  const refreshPack = useCallback(async () => {
+    const nextPack = await buildCoachContextPack(db, userId);
+    setPack(nextPack);
+    return nextPack;
+  }, [db, userId]);
+
+  const startProposal = useCallback(async (messageId: string, proposalId: string) => {
+    if (startingProposalRef.current) return;
+    startingProposalRef.current = true;
+    setProposalStates((current) => ({ ...current, [messageId]: { status: 'starting' } }));
+    try {
+      const result = await startCoachProposalWorkout(db, userId, proposalId, newId);
+      if (result.status === 'started' || result.status === 'already_applied') {
+        setProposalStates((current) => ({
+          ...current,
+          [messageId]: { status: 'applied', workoutId: result.workoutId },
+        }));
+        router.push({ pathname: '/workout', params: { workoutId: result.workoutId } });
+        return;
+      }
+      if (result.status === 'stale') {
+        setProposalStates((current) => ({ ...current, [messageId]: { status: 'stale' } }));
+        await refreshPack();
+        return;
+      }
+      if (result.status === 'active_workout') {
+        setProposalStates((current) => ({
+          ...current,
+          [messageId]: {
+            status: 'error',
+            detail: 'Another workout became active before this proposal was applied. Resume that workout or finish it first.',
+          },
+        }));
+        await refreshPack();
+        return;
+      }
+      setProposalStates((current) => ({
+        ...current,
+        [messageId]: { status: 'error', detail: 'No current workout plan is available to start.' },
+      }));
+    } catch {
+      setProposalStates((current) => ({
+        ...current,
+        [messageId]: { status: 'error', detail: 'The proposal was not applied. Check the plan and try again.' },
+      }));
+    } finally {
+      startingProposalRef.current = false;
+    }
+  }, [db, newId, refreshPack, userId]);
 
   const selectThread = useCallback(async (threadId: string) => {
     if (busy) return;
@@ -595,12 +802,50 @@ function CoachContent() {
 
       {(messages.length > 0 || busy) && (
         <View style={{ gap: space[3] }}>
-          {messages.map((message) => (
-            <View key={message.id} style={{ gap: space[2] }}>
-              <Bubble mine={message.role === 'user'}>{message.content}</Bubble>
-              {message.reply && <ReplyEvidence reply={message.reply} evidence={message.evidence ?? []} />}
-            </View>
-          ))}
+          {messages.map((message) => {
+            const proposalId = message.reply?.proposalId ?? null;
+            const proposal = resolveCoachProposal(pack?.proposalSet ?? null, proposalId);
+            const applied = !!proposalId && pack?.actionState.activeProposalId === proposalId;
+            const blocked = !!proposalId
+              && !!pack?.actionState.hasActiveWorkout
+              && pack.actionState.activeProposalId !== proposalId;
+            return (
+              <View key={message.id} style={{ gap: space[2] }}>
+                <Bubble mine={message.role === 'user'}>{message.content}</Bubble>
+                {proposal && (
+                  <CoachProposalCard
+                    activeWorkoutId={pack?.actionState.activeWorkoutId ?? null}
+                    applied={applied}
+                    blocked={blocked}
+                    onResume={(workoutId) => router.push({ pathname: '/workout', params: { workoutId } })}
+                    onStart={() => void startProposal(message.id, proposal.id)}
+                    option={proposal}
+                    state={proposalStates[message.id]}
+                  />
+                )}
+                {proposalId && !proposal && (
+                  <View
+                    accessibilityLiveRegion="polite"
+                    style={{
+                      alignSelf: 'stretch',
+                      borderWidth: borderWidth.hairline,
+                      borderColor: t.colors.dataCoral,
+                      borderRadius: radius.card,
+                      backgroundColor: t.colors.bgSurface,
+                      padding: space[4],
+                      gap: 4,
+                    }}
+                  >
+                    <Text style={t.text('labelCaps', 'dataCoral')}>Proposal expired</Text>
+                    <Text style={t.text('bodyS', 'textMuted')}>
+                      Your plan or readiness changed. Ask Coach again before starting this adjustment.
+                    </Text>
+                  </View>
+                )}
+                {message.reply && <ReplyEvidence reply={message.reply} evidence={message.evidence ?? []} />}
+              </View>
+            );
+          })}
           {busy && <Bubble>Reading your log…</Bubble>}
         </View>
       )}
@@ -673,7 +918,7 @@ function CoachContent() {
         <View style={{ gap: 11 }}>
           <Text style={t.text('bodyM')}>{pack?.program?.nextDayName ?? 'Next session'} is the active plan target.</Text>
           <Text style={t.text('bodyM', 'textMuted')}>
-            Answers use minimized training fields from your profile, recent log, PRs, recovery, and current plan. Account contact details and raw record IDs are not sent to the model, and a response cannot change your program.
+            Answers use minimized training fields from your profile, recent log, PRs, recovery, and current plan. Account contact details and raw record IDs are not sent to the model. A proposal changes only one workout after you review it and tap Apply.
           </Text>
         </View>
       </Card>

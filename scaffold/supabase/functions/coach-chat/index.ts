@@ -3,6 +3,7 @@ import {
   COACH_RESPONSE_FORMAT,
   COACH_SYSTEM_PROMPT,
   boundaryReply,
+  coachProposalOptionsForMessage,
   classifyCoachBoundary,
   classifyCoachSafety,
   detectProtectedCoachOutput,
@@ -91,6 +92,7 @@ Deno.serve(async (request) => {
   if (deterministicBoundary) return json(deterministicBoundary);
   const undefinedTerm = undefinedCoachTermReply(input.message, input.context, input.evidence);
   if (undefinedTerm) return json(undefinedTerm);
+  const proposalOptions = coachProposalOptionsForMessage(input.message, input.proposalOptions);
 
   const modelConfig = resolveCoachModelConfig((name) => Deno.env.get(name));
   if (!modelConfig) return json({ error: 'Live coach is not configured.' }, 503);
@@ -120,6 +122,7 @@ Deno.serve(async (request) => {
       recentConversation: input.history,
       context: input.context,
       evidence: input.evidence,
+      proposalOptions,
     },
     responseFormat: COACH_RESPONSE_FORMAT,
     safetyIdentifier: await safetyIdentifier(authData.user.id),
@@ -147,6 +150,7 @@ Deno.serve(async (request) => {
       followUp: null,
       safetyClass: 'medical',
       boundaryClass: 'fitness',
+      proposalId: null,
     });
   }
   if (modelOutput.kind !== 'text') {
@@ -159,11 +163,19 @@ Deno.serve(async (request) => {
   } catch {
     return modelFailure('Live coach returned an invalid answer.', 'answer_invalid_json');
   }
-  const reply = validateStructuredReply(parsed, new Set(input.evidence.map((item) => item.key)));
+  const reply = validateStructuredReply(
+    parsed,
+    new Set(input.evidence.map((item) => item.key)),
+    new Set(proposalOptions.map((item) => item.id)),
+  );
   if (!reply) {
     return modelFailure('Live coach returned an invalid answer.', 'answer_invalid_shape');
   }
-  const unsupportedClaims = findUnsupportedCoachClaims(reply.answer, input.context, input.evidence);
+  const unsupportedClaims = findUnsupportedCoachClaims(
+    reply.answer,
+    { ...input.context, proposalOptions },
+    input.evidence,
+  );
   if (unsupportedClaims.length) {
     const allowedEvidence = new Set(input.evidence.map((item) => item.key));
     return json({
@@ -172,6 +184,7 @@ Deno.serve(async (request) => {
       followUp: null,
       safetyClass: 'standard',
       boundaryClass: 'fitness',
+      proposalId: null,
     });
   }
   const outputText = `${reply.answer}\n${reply.followUp ?? ''}`;

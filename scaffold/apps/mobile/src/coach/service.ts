@@ -36,6 +36,7 @@ export async function askCoach(
       history: compactCoachHistory(history),
       context: pack.modelContext,
       evidence: pack.evidence,
+      proposalOptions: pack.proposalOptions,
     };
     const invoke = () => client.functions.invoke('coach-chat', { timeout: 20_000, body });
     let result = await invoke();

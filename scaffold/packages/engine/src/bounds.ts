@@ -51,7 +51,8 @@ export function validateChange(
       continue;
     }
     const pattern = p.nextState.pattern;
-    setsByPattern.set(pattern, (setsByPattern.get(pattern) ?? 0) + p.sets.length);
+    const workingSets = p.sets.filter((set) => !set.isWarmup && set.kind !== 'warmup');
+    setsByPattern.set(pattern, (setsByPattern.get(pattern) ?? 0) + workingSets.length);
 
     const curMax = Math.max(0, ...cur.sets.map((s) => s.weight ?? 0));
     for (const set of p.sets) {
@@ -65,7 +66,7 @@ export function validateChange(
     }
 
     if (COMPOUND_PATTERNS.has(pattern)) {
-      for (const set of p.sets) {
+      for (const set of workingSets) {
         if (set.targetReps[0] < repFloor) {
           violations.push(
             `slot ${p.slotId}: target reps ${set.targetReps[0]} below compound rep floor ${repFloor}`,
