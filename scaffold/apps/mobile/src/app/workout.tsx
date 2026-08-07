@@ -1050,7 +1050,14 @@ export default function WorkoutScreen() {
                 </Text>
               </Pressable>
               {!activeDone && (
-                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: space[2] }}>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'flex-start',
+                    gap: space[2],
+                    transform: [{ translateY: -3 }],
+                  }}
+                >
                   {activeIndex < plan.prescriptions.length - 1 && (
                     <Pressable
                       onPress={skipMovement}
