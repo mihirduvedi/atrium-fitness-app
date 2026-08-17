@@ -14,7 +14,7 @@
  * This module is pure SQL + types so vitest can apply it to node:sqlite.
  */
 
-export const SCHEMA_VERSION = 11;
+export const SCHEMA_VERSION = 12;
 
 export const SCHEMA_SQL = `
 create table if not exists profiles (
@@ -85,6 +85,17 @@ create table if not exists workouts (
   ended_at text,
   notes text,
   readiness_at_start integer,
+  updated_at text not null,
+  deleted_at text
+);
+
+-- Presence marks a workout as an AI Coach one-session deload. Keeping this
+-- in a separate synced table preserves the schema-v11 workouts wire shape;
+-- older clients ignore tables outside their hard-coded sync allowlist.
+create table if not exists workout_training_intents (
+  id text primary key references workouts (id),
+  intent text not null check (intent = 'coach_deload'),
+  plan_json text,
   updated_at text not null,
   deleted_at text
 );
@@ -265,6 +276,7 @@ create table if not exists device_meta (
 create index if not exists sets_workout_idx on sets (workout_id);
 create index if not exists sets_exercise_idx on sets (exercise_id, completed_at);
 create index if not exists workouts_user_idx on workouts (user_id, started_at);
+create index if not exists workout_training_intents_updated_idx on workout_training_intents (updated_at);
 create index if not exists program_days_program_idx on program_days (program_id);
 create index if not exists program_slots_day_idx on program_slots (program_day_id);
 create index if not exists health_samples_user_type_date_idx on health_samples (user_id, type, date);
@@ -285,6 +297,7 @@ export const SYNCED_TABLES = [
   'program_days',
   'program_slots',
   'workouts',
+  'workout_training_intents',
   'sets',
   'personal_records',
   'subjective_tags',
@@ -305,9 +318,17 @@ export interface SqlDb {
   getAllAsync<T>(sql: string, ...params: SqlParam[]): Promise<T[]>;
   getFirstAsync<T>(sql: string, ...params: SqlParam[]): Promise<T | null>;
   withTransactionAsync(fn: () => Promise<void>): Promise<void>;
+  /** Native Expo SQLite supplies an isolated connection for this callback. */
+  withExclusiveTransactionAsync?(fn: (transaction: SqlDb) => Promise<void>): Promise<void>;
 }
 
 export type SqlParam = string | number | null;
+
+const SYNC_CURSOR_EPOCH = '1970-01-01T00:00:00.000Z';
+const WORKOUT_TRAINING_INTENTS_CURSOR_BACKFILL_KEY =
+  'schema-v12-workout-training-intents-cursor-backfill';
+const SERVER_PULL_CURSOR_BACKFILL_KEY =
+  'server-authoritative-paginated-pull-cursor-v1';
 
 async function ensureColumn(db: SqlDb, table: string, column: string, ddl: string): Promise<void> {
   const cols = await db.getAllAsync<{ name: string }>(`pragma table_info(${table})`);
@@ -316,11 +337,202 @@ async function ensureColumn(db: SqlDb, table: string, column: string, ddl: strin
   }
 }
 
+/**
+ * Early schema-v12 development builds stored this marker directly on
+ * workouts. Convert those local rows and queued payloads before removing the
+ * column so the public workout wire shape remains compatible with v11.
+ */
+async function migrateLegacyWorkoutTrainingIntent(db: SqlDb): Promise<void> {
+  const columns = await db.getAllAsync<{ name: string }>('pragma table_info(workouts)');
+  if (!columns.some((column) => column.name === 'training_intent')) return;
+
+  await db.withTransactionAsync(async () => {
+    const deloads = await db.getAllAsync<{
+      id: string;
+      deleted_at: string | null;
+    }>(
+      `select id, deleted_at
+         from workouts
+        where training_intent = 'coach_deload'`,
+    );
+    for (const row of deloads) {
+      const pendingSetMutations = await db.getAllAsync<{
+        seq: number;
+        id: string;
+        entity_id: string;
+        op: string;
+        payload: string;
+        created_at: string;
+      }>(
+        `select mq.seq, mq.id, mq.entity_id, mq.op, mq.payload, mq.created_at
+           from mutation_queue mq
+           join sets s on s.id = mq.entity_id
+          where mq.entity = 'sets'
+            and s.workout_id = ?
+            and mq.pushed_at is null
+          order by mq.seq`,
+        row.id,
+      );
+      const migratedAt = new Date().toISOString();
+      const payload = {
+        id: row.id,
+        intent: 'coach_deload',
+        updated_at: migratedAt,
+        deleted_at: row.deleted_at,
+      };
+      await db.runAsync(
+        `insert into workout_training_intents (id, intent, updated_at, deleted_at)
+         values (?, 'coach_deload', ?, ?)
+         on conflict (id) do update set
+           intent = excluded.intent,
+           updated_at = excluded.updated_at,
+           deleted_at = excluded.deleted_at`,
+        row.id,
+        migratedAt,
+        row.deleted_at,
+      );
+      await db.runAsync(
+        `update mutation_queue
+            set op = ?, payload = ?, created_at = ?
+          where entity = 'workout_training_intents'
+            and entity_id = ?
+            and pushed_at is null`,
+        row.deleted_at ? 'delete' : 'upsert',
+        JSON.stringify(payload),
+        migratedAt,
+        row.id,
+      );
+      const pendingIntentMutation = await db.getFirstAsync<{ seq: number }>(
+        `select seq from mutation_queue
+          where entity = 'workout_training_intents'
+            and entity_id = ?
+            and pushed_at is null
+          order by seq desc
+          limit 1`,
+        row.id,
+      );
+      if (!pendingIntentMutation) {
+        await db.runAsync(
+          `insert or ignore into mutation_queue (
+             id, entity, entity_id, op, payload, created_at
+           ) values (?, 'workout_training_intents', ?, ?, ?, ?)`,
+          `schema12-workout-intent-${row.id}`,
+          row.id,
+          row.deleted_at ? 'delete' : 'upsert',
+          JSON.stringify(payload),
+          migratedAt,
+        );
+      }
+
+      // Preserve every pending set mutation byte-for-byte, but give it a new
+      // sequence after the intent marker so sync cannot publish child sets
+      // before peers can identify the workout as a Coach deload.
+      for (const mutation of pendingSetMutations) {
+        await db.runAsync(
+          'delete from mutation_queue where seq = ? and pushed_at is null',
+          mutation.seq,
+        );
+        await db.runAsync(
+          `insert into mutation_queue (
+             id, entity, entity_id, op, payload, created_at, pushed_at
+           ) values (?, 'sets', ?, ?, ?, ?, null)`,
+          mutation.id,
+          mutation.entity_id,
+          mutation.op,
+          mutation.payload,
+          mutation.created_at,
+        );
+      }
+    }
+
+    const queuedWorkouts = await db.getAllAsync<{ seq: number; payload: string }>(
+      `select seq, payload from mutation_queue where entity = 'workouts'`,
+    );
+    for (const queued of queuedWorkouts) {
+      try {
+        const payload = JSON.parse(queued.payload) as Record<string, unknown>;
+        if (!Object.prototype.hasOwnProperty.call(payload, 'training_intent')) continue;
+        delete payload.training_intent;
+        await db.runAsync(
+          'update mutation_queue set payload = ? where seq = ?',
+          JSON.stringify(payload),
+          queued.seq,
+        );
+      } catch {
+        // A malformed queue payload will be surfaced by the normal sync path;
+        // migration must not silently replace unrelated data.
+      }
+    }
+
+    await db.execAsync('alter table workouts drop column training_intent');
+  });
+}
+
+/**
+ * Sync uses one cursor for every table. A v11 device can therefore have a
+ * cursor newer than intent rows created before it learned about the v12 side
+ * table. Rewind once so the next pull backfills those historical markers;
+ * the local marker protects all later sync progress from another rewind.
+ */
+async function resetCursorForWorkoutTrainingIntentBackfill(db: SqlDb): Promise<void> {
+  await db.withTransactionAsync(async () => {
+    const marker = await db.getFirstAsync<{ value: string }>(
+      'select value from device_meta where key = ?',
+      WORKOUT_TRAINING_INTENTS_CURSOR_BACKFILL_KEY,
+    );
+    if (marker) return;
+
+    const migratedAt = new Date().toISOString();
+    await db.runAsync(
+      'update sync_cursors set last_pulled_at = ?, updated_at = ?',
+      SYNC_CURSOR_EPOCH,
+      migratedAt,
+    );
+    await db.runAsync(
+      'insert into device_meta (key, value) values (?, ?)',
+      WORKOUT_TRAINING_INTENTS_CURSOR_BACKFILL_KEY,
+      '1',
+    );
+  });
+}
+
+/**
+ * Earlier clients could persist a device-clock cursor ahead of PostgreSQL and
+ * used an unpaginated table read. Rewind once when the server-authoritative,
+ * paginated pull contract lands so any rows skipped by either behavior are
+ * deterministically backfilled.
+ */
+async function resetCursorForServerPullBackfill(db: SqlDb): Promise<void> {
+  await db.withTransactionAsync(async () => {
+    const marker = await db.getFirstAsync<{ value: string }>(
+      'select value from device_meta where key = ?',
+      SERVER_PULL_CURSOR_BACKFILL_KEY,
+    );
+    if (marker) return;
+
+    const migratedAt = new Date().toISOString();
+    await db.runAsync(
+      'update sync_cursors set last_pulled_at = ?, updated_at = ?',
+      SYNC_CURSOR_EPOCH,
+      migratedAt,
+    );
+    await db.runAsync(
+      'insert into device_meta (key, value) values (?, ?)',
+      SERVER_PULL_CURSOR_BACKFILL_KEY,
+      '1',
+    );
+  });
+}
+
 /** Apply the schema (idempotent) and stamp user_version. */
 export async function migrate(db: SqlDb): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('pragma user_version');
   const current = row?.user_version ?? 0;
   await db.execAsync(SCHEMA_SQL);
+  await ensureColumn(db, 'workout_training_intents', 'plan_json', 'plan_json text');
+  await migrateLegacyWorkoutTrainingIntent(db);
+  await resetCursorForWorkoutTrainingIntentBackfill(db);
+  await resetCursorForServerPullBackfill(db);
   await ensureColumn(db, 'progress_photos', 'tags', "tags text not null default '[]'");
   await ensureColumn(db, 'exercises', 'description', 'description text');
   await ensureColumn(db, 'exercises', 'default_sets', 'default_sets integer');

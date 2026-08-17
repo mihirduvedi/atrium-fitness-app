@@ -40,7 +40,7 @@ describe('local Coach conversation history', () => {
       historyContent: 'The log does not prove a plateau yet.',
       reply: {
         answer: 'The log does not prove a plateau yet.',
-        evidenceKeys: ['latest_pr'],
+        evidenceKeys: ['latest_pr', 'training_strain'],
         followUp: null,
         safetyClass: 'standard',
         boundaryClass: 'fitness',
@@ -48,7 +48,10 @@ describe('local Coach conversation history', () => {
         notice: 'On-device guidance',
         proposalId: null,
       },
-      evidence: [{ key: 'latest_pr', label: 'Latest PR', value: 'Bench Press · 233 lb' }],
+      evidence: [
+        { key: 'latest_pr', label: 'Latest PR', value: 'Bench Press · 233 lb' },
+        { key: 'training_strain', label: 'Adaptation signal', value: '2 lifts met their stall criteria this week.' },
+      ],
       now: '2026-08-04T10:00:02.000Z',
     });
 
@@ -60,9 +63,14 @@ describe('local Coach conversation history', () => {
       'Why am I stuck on bench?',
       'The log does not prove a plateau yet.',
     ]);
-    expect(messages[1]?.reply).toMatchObject({ source: 'offline', boundaryClass: 'fitness' });
+    expect(messages[1]?.reply).toMatchObject({
+      source: 'offline',
+      boundaryClass: 'fitness',
+      evidenceKeys: ['latest_pr', 'training_strain'],
+    });
     expect(messages[1]?.evidence).toEqual([
       { key: 'latest_pr', label: 'Latest PR', value: 'Bench Press · 233 lb' },
+      { key: 'training_strain', label: 'Adaptation signal', value: '2 lifts met their stall criteria this week.' },
     ]);
     db.close();
   });

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { detectPRs } from '@atrium/engine';
-import { migrate, type SqlDb } from '../src/db/schema';
+import { migrate, type SqlDb, type SqlParam } from '../src/db/schema';
 import {
   addMovementToProgramDay,
   cloneProgramIntoWorkoutPlan,
@@ -480,7 +480,7 @@ describe('Stage 5 data layer: Active Workout', () => {
     expect((await getWorkoutSummary(db, workoutId))!.customName).toBe('Legs - Volume');
   });
 
-  it('cleans stale empty active workouts while preserving a draft and logged progress', async () => {
+  it('cleans stale empty active workouts while preserving selected, logged, and synced Coach workouts', async () => {
     await seedDemoProgram(db, USER, id);
     const program = (await getActiveProgram(db, USER))!;
     const day = (await getNextProgramDay(db, program.id))!;
@@ -499,9 +499,10 @@ describe('Stage 5 data layer: Active Workout', () => {
 
     const staleWithDraft = 'legacy-empty-draft';
     const staleWithoutDraft = 'legacy-empty-no-draft';
+    const syncedCoachWorkout = 'synced-coach-workout';
     const activeWithSet = 'legacy-with-set';
     const ts = '2026-05-01T10:00:00.000Z';
-    for (const workoutId of [staleWithDraft, staleWithoutDraft, activeWithSet]) {
+    for (const workoutId of [staleWithDraft, staleWithoutDraft, syncedCoachWorkout, activeWithSet]) {
       await db.runAsync(
         `insert into workouts (id, user_id, program_day_id, started_at, ended_at, notes, readiness_at_start, updated_at, deleted_at)
          values (?, ?, ?, ?, null, null, null, ?, null)`,
@@ -512,6 +513,19 @@ describe('Stage 5 data layer: Active Workout', () => {
         ts,
       );
     }
+    await db.runAsync(
+      `insert into workout_training_intents (id, intent, updated_at, deleted_at)
+       values (?, 'coach_deload', ?, null)`,
+      staleWithoutDraft,
+      ts,
+    );
+    await db.runAsync(
+      `insert into workout_training_intents (id, intent, plan_json, updated_at, deleted_at)
+       values (?, 'coach_deload', ?, ?, null)`,
+      syncedCoachWorkout,
+      '{"version":1}',
+      ts,
+    );
     await saveWorkoutDraft(db, {
       workoutId: staleWithDraft,
       userId: USER,
@@ -533,23 +547,29 @@ describe('Stage 5 data layer: Active Workout', () => {
       isWarmup: firstSet.isWarmup,
     }, id);
 
-    expect(await discardEmptyInProgressWorkouts(db, USER, id, keeper)).toBe(2);
+    expect(await discardEmptyInProgressWorkouts(db, USER, id, keeper)).toBe(1);
 
     const rows = await db.getAllAsync<{ id: string; deleted_at: string | null }>(
       `select id, deleted_at from workouts
-        where id in (?, ?, ?, ?)
+        where id in (?, ?, ?, ?, ?)
         order by id`,
       keeper,
       staleWithDraft,
       staleWithoutDraft,
+      syncedCoachWorkout,
       activeWithSet,
     );
     expect(Object.fromEntries(rows.map((row) => [row.id, row.deleted_at !== null]))).toEqual({
       'legacy-empty-draft': true,
-      'legacy-empty-no-draft': true,
+      'legacy-empty-no-draft': false,
       'legacy-with-set': false,
+      'synced-coach-workout': false,
       [keeper]: false,
     });
+    expect((await db.getFirstAsync<{ deleted_at: string | null }>(
+      'select deleted_at from workout_training_intents where id = ?',
+      staleWithoutDraft,
+    ))?.deleted_at).toBeNull();
     expect(await getWorkoutDraft(db, staleWithDraft)).toBeNull();
   });
 
@@ -666,6 +686,12 @@ describe('Stage 5 data layer: Active Workout', () => {
       reps: 5,
       isWarmup: firstSet.isWarmup,
     }, id);
+    await db.runAsync(
+      `insert into workout_training_intents (id, intent, updated_at, deleted_at)
+       values (?, 'coach_deload', ?, null)`,
+      discardedWorkoutId,
+      '2026-05-01T10:00:00.000Z',
+    );
 
     expect(await discardWorkout(db, discardedWorkoutId, id)).toBe(true);
     expect(await getWorkoutDraft(db, discardedWorkoutId)).toBeNull();
@@ -675,6 +701,80 @@ describe('Stage 5 data layer: Active Workout', () => {
       discardedWorkoutId,
     );
     expect(liveSets!.n).toBe(0);
+    expect((await db.getFirstAsync<{ deleted_at: string | null }>(
+      'select deleted_at from workout_training_intents where id = ?',
+      discardedWorkoutId,
+    ))?.deleted_at).not.toBeNull();
+  });
+
+  it('rolls back sets, workout, intent, queue, and draft when discard fails late', async () => {
+    await seedDemoProgram(db, USER, id);
+    const program = (await getActiveProgram(db, USER))!;
+    const day = (await getNextProgramDay(db, program.id))!;
+    const plan = await planSession(db, USER, day, id);
+    const workoutId = await startWorkout(db, USER, day.dayId, id);
+    const first = plan.prescriptions[0]!;
+    const firstSet = first.sets[0]!;
+    await saveWorkoutDraft(db, {
+      workoutId,
+      userId: USER,
+      programDayId: day.dayId,
+      day,
+      plan,
+      setUi: {},
+      activeIndex: 0,
+      restRemainingS: null,
+    });
+    await logSet(db, {
+      workoutId,
+      exerciseId: first.exerciseId,
+      setIndex: firstSet.setIndex,
+      weight: 100,
+      reps: 5,
+      isWarmup: firstSet.isWarmup,
+    }, id);
+    await db.runAsync(
+      `insert into workout_training_intents (
+         id, intent, plan_json, updated_at, deleted_at
+       ) values (?, 'coach_deload', null, ?, null)`,
+      workoutId,
+      '2026-05-01T10:00:00.000Z',
+    );
+    const queuedBefore = (await db.getFirstAsync<{ total: number }>(
+      'select count(*) as total from mutation_queue',
+    ))!.total;
+    const failingDb: SqlDb = {
+      execAsync: (sql) => db.execAsync(sql),
+      runAsync: (sql, ...params) => {
+        if (sql.includes('update workout_training_intents set deleted_at')) {
+          throw new Error('injected intent tombstone failure');
+        }
+        return db.runAsync(sql, ...params);
+      },
+      getAllAsync: <T,>(sql: string, ...params: SqlParam[]) => db.getAllAsync<T>(sql, ...params),
+      getFirstAsync: <T,>(sql: string, ...params: SqlParam[]) => db.getFirstAsync<T>(sql, ...params),
+      withTransactionAsync: (fn) => db.withTransactionAsync(fn),
+      withExclusiveTransactionAsync: (fn) => db.withExclusiveTransactionAsync!(() => fn(failingDb)),
+    };
+
+    await expect(discardWorkout(failingDb, workoutId, id))
+      .rejects.toThrow('injected intent tombstone failure');
+    expect(await db.getFirstAsync<{ deleted_at: string | null }>(
+      'select deleted_at from workouts where id = ?',
+      workoutId,
+    )).toEqual({ deleted_at: null });
+    expect(await db.getFirstAsync<{ deleted_at: string | null }>(
+      'select deleted_at from sets where workout_id = ?',
+      workoutId,
+    )).toEqual({ deleted_at: null });
+    expect(await db.getFirstAsync<{ deleted_at: string | null }>(
+      'select deleted_at from workout_training_intents where id = ?',
+      workoutId,
+    )).toEqual({ deleted_at: null });
+    expect(await getWorkoutDraft(db, workoutId)).not.toBeNull();
+    expect((await db.getFirstAsync<{ total: number }>(
+      'select count(*) as total from mutation_queue',
+    ))?.total).toBe(queuedBefore);
   });
 
   it('logs each set durably and exposes previous-session ghost values', async () => {
@@ -739,6 +839,44 @@ describe('Stage 5 data layer: Active Workout', () => {
 });
 
 describe('Stage 5 data layer: Summary', () => {
+  it('keeps normal training in engine history while excluding marked deload sets', async () => {
+    const timestamp = '2026-08-01T10:00:00.000Z';
+    for (const workoutId of ['normal-workout', 'deload-workout']) {
+      await db.runAsync(
+        `insert into workouts (
+           id, user_id, program_day_id, started_at, ended_at, notes,
+           readiness_at_start, updated_at, deleted_at
+         ) values (?, ?, null, ?, ?, null, 80, ?, null)`,
+        workoutId,
+        USER,
+        timestamp,
+        '2026-08-01T11:00:00.000Z',
+        timestamp,
+      );
+      await db.runAsync(
+        `insert into sets (
+           id, workout_id, exercise_id, set_index, weight, reps, is_warmup,
+           completed_at, updated_at, deleted_at
+         ) values (?, ?, 'bb_bench', 0, ?, 8, 0, ?, ?, null)`,
+        `${workoutId}-set`,
+        workoutId,
+        workoutId === 'normal-workout' ? 135 : 120,
+        timestamp,
+        timestamp,
+      );
+    }
+    await db.runAsync(
+      `insert into workout_training_intents (id, intent, updated_at, deleted_at)
+       values ('deload-workout', 'coach_deload', ?, null)`,
+      timestamp,
+    );
+
+    expect(await getHistory(db, USER)).toEqual([expect.objectContaining({
+      exerciseId: 'bb_bench',
+      weight: 135,
+    })]);
+  });
+
   it('computes duration, volume, set count from real rows and detects PRs via the engine', async () => {
     await seedDemoProgram(db, USER, id);
     // 4 sessions establish history, 5th repeats day 0 with heavier bench

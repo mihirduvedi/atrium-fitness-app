@@ -15,7 +15,12 @@ const nowIso = () => new Date().toISOString();
  * app passes expo-crypto's randomUUID. Tests pass a counter. */
 export type IdFn = () => string;
 
-export async function upsertWithMutation(
+/**
+ * Transaction-scoped half of upsertWithMutation. Callers that need several
+ * synced writes to commit as one unit can use this inside their own
+ * withTransactionAsync callback without opening a nested transaction.
+ */
+export async function upsertWithMutationInTransaction(
   db: SqlDb,
   table: SyncedTable,
   row: Row,
@@ -29,22 +34,58 @@ export async function upsertWithMutation(
     .map((c) => `${c} = excluded.${c}`)
     .join(', ');
 
+  await db.runAsync(
+    `insert into ${table} (${cols.join(', ')}) values (${placeholders})
+     on conflict (${table === 'profiles' ? 'user_id' : 'id'}) do update set ${assignments}`,
+    ...cols.map((c) => updated[c] ?? null),
+  );
+  await db.runAsync(
+    `insert into mutation_queue (id, entity, entity_id, op, payload, created_at)
+     values (?, ?, ?, 'upsert', ?, ?)`,
+    idFn(),
+    table,
+    String(updated.id ?? updated.user_id),
+    JSON.stringify(updated),
+    nowIso(),
+  );
+}
+
+export async function upsertWithMutation(
+  db: SqlDb,
+  table: SyncedTable,
+  row: Row,
+  idFn: IdFn,
+): Promise<void> {
   await db.withTransactionAsync(async () => {
-    await db.runAsync(
-      `insert into ${table} (${cols.join(', ')}) values (${placeholders})
-       on conflict (${table === 'profiles' ? 'user_id' : 'id'}) do update set ${assignments}`,
-      ...cols.map((c) => updated[c] ?? null),
-    );
-    await db.runAsync(
-      `insert into mutation_queue (id, entity, entity_id, op, payload, created_at)
-       values (?, ?, ?, 'upsert', ?, ?)`,
-      idFn(),
-      table,
-      String(updated.id ?? updated.user_id),
-      JSON.stringify(updated),
-      nowIso(),
-    );
+    await upsertWithMutationInTransaction(db, table, row, idFn);
   });
+}
+
+/** Transaction-scoped soft delete for multi-row atomic operations. */
+export async function softDeleteWithMutationInTransaction(
+  db: SqlDb,
+  table: SyncedTable,
+  id: string,
+  idFn: IdFn,
+  deletedAt = nowIso(),
+): Promise<void> {
+  const pk = table === 'profiles' ? 'user_id' : 'id';
+  await db.runAsync(
+    `update ${table} set deleted_at = ?, updated_at = ? where ${pk} = ?`,
+    deletedAt,
+    deletedAt,
+    id,
+  );
+  const row = await db.getFirstAsync<Row>(`select * from ${table} where ${pk} = ?`, id);
+  await db.runAsync(
+    `insert into mutation_queue (id, entity, entity_id, op, payload, created_at)
+     values (?, ?, ?, 'delete', ?, ?)`,
+    idFn(),
+    table,
+    id,
+    JSON.stringify(row ?? { [pk]: id, deleted_at: deletedAt, updated_at: deletedAt }),
+    deletedAt,
+  );
 }
 
 /** Soft delete: tombstone the row and queue the mutation (sync needs tombstones). */
@@ -54,19 +95,7 @@ export async function softDeleteWithMutation(
   id: string,
   idFn: IdFn,
 ): Promise<void> {
-  const ts = nowIso();
-  const pk = table === 'profiles' ? 'user_id' : 'id';
   await db.withTransactionAsync(async () => {
-    await db.runAsync(`update ${table} set deleted_at = ?, updated_at = ? where ${pk} = ?`, ts, ts, id);
-    const row = await db.getFirstAsync<Row>(`select * from ${table} where ${pk} = ?`, id);
-    await db.runAsync(
-      `insert into mutation_queue (id, entity, entity_id, op, payload, created_at)
-       values (?, ?, ?, 'delete', ?, ?)`,
-      idFn(),
-      table,
-      id,
-      JSON.stringify(row ?? { [pk]: id, deleted_at: ts, updated_at: ts }),
-      ts,
-    );
+    await softDeleteWithMutationInTransaction(db, table, id, idFn);
   });
 }

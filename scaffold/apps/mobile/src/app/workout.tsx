@@ -38,6 +38,7 @@ import {
   workoutQueueFinishedKey,
 } from '@/workoutQueue';
 import { displayWorkoutName } from '@/workoutNames';
+import { runWorkoutBoot } from '@/workoutBoot';
 import { restSecondsAfterLoggedSet } from '@/workoutRest';
 
 interface SetUiState {
@@ -479,6 +480,8 @@ export default function WorkoutScreen() {
   const [exerciseNames, setExerciseNames] = useState<Record<string, string>>({});
   const [setUi, setSetUi] = useState<Record<string, SetUiState>>({});
   const [activeIndex, setActiveIndex] = useState(0);
+  const [bootAttempt, setBootAttempt] = useState(0);
+  const [bootError, setBootError] = useState<string | null>(null);
   const activeIndexRef = useRef(0);
   const draftReady = useRef(false);
   const [timelineDragging, setTimelineDragging] = useState(false);
@@ -499,6 +502,7 @@ export default function WorkoutScreen() {
       ? params.readiness
       : null;
     draftReady.current = false;
+    setBootError(null);
 
     const exerciseNameMap = (rows: Awaited<ReturnType<typeof listExercises>>) =>
       Object.fromEntries(rows.map((exercise) => [exercise.id, exercise.name]));
@@ -534,14 +538,29 @@ export default function WorkoutScreen() {
     };
 
     const openExistingWorkout = async (existing: InProgressWorkoutOverview, names: Record<string, string>) => {
-      const draft = await getWorkoutDraft(db, existing.workoutId);
+      if (live) {
+        setWorkoutId(existing.workoutId);
+        setWorkoutStartedAt(existing.startedAt);
+        setWorkoutCustomName(existing.customName);
+      }
+
+      let draft: WorkoutDraftData | null = null;
+      try {
+        draft = await getWorkoutDraft(db, existing.workoutId);
+      } catch {
+        // Local-only drafts can be stale or malformed after an interrupted
+        // upgrade. Treat that cache as absent and rebuild through the same
+        // guarded Program/synced-intent path.
+      }
       if (draft) {
         await applyDraft(draft, names);
-        return true;
+        return;
       }
 
       const context = existing.programDayId ? await getProgramDayContext(db, existing.programDayId) : null;
-      if (!context) return false;
+      if (!context) {
+        throw new Error('This active workout cannot be safely resumed without its Program day.');
+      }
       const readiness = routeReadiness ?? (await getReadinessSignal(db, userId)).readiness;
       const sessionPlan = await planSession(db, userId, context, newId, readiness);
       const ui = initialSetUiForPlan(sessionPlan);
@@ -556,12 +575,13 @@ export default function WorkoutScreen() {
         restRemainingS: null,
       });
       const freshDraft = await getWorkoutDraft(db, existing.workoutId);
-      if (!freshDraft) return false;
+      if (!freshDraft) {
+        throw new Error('This active workout cannot be safely resumed without a verified draft.');
+      }
       await applyDraft(freshDraft, names);
-      return true;
     };
 
-    (async () => {
+    void runWorkoutBoot(async () => {
       const exerciseRows = await listExercises(db, userId);
       const names = exerciseNameMap(exerciseRows);
       const requestedWorkoutId = typeof params.workoutId === 'string' ? params.workoutId : null;
@@ -569,18 +589,20 @@ export default function WorkoutScreen() {
       const existingWorkout = requestedWorkout ?? await getInProgressWorkoutOverview(db, userId);
       if (existingWorkout) {
         await discardEmptyInProgressWorkouts(db, userId, newId, existingWorkout.workoutId);
+        await openExistingWorkout(existingWorkout, names);
+        return;
       }
-      if (existingWorkout && await openExistingWorkout(existingWorkout, names)) return;
 
       const program = await getActiveProgram(db, userId);
-      if (!program) return;
+      if (!program) throw new Error('Atrium cannot safely prepare a workout without an active Program.');
       const next = await getNextProgramDay(db, program.id);
-      if (!next) return;
+      if (!next) throw new Error('Atrium cannot safely prepare a workout without a next Program day.');
       const readinessSignal = await getReadinessSignal(db, userId);
       const readiness = routeReadiness ?? readinessSignal.readiness;
       const wid = await startWorkout(db, userId, next.dayId, newId, readinessSignal.score);
+      if (live) setWorkoutId(wid);
       const overview = await getWorkoutOverview(db, wid, userId);
-      if (!overview) return;
+      if (!overview) throw new Error('Atrium could not verify the workout it just created.');
       if (overview.programDayId !== next.dayId) {
         await openExistingWorkout(overview, names);
         return;
@@ -612,12 +634,16 @@ export default function WorkoutScreen() {
       activeIndexRef.current = 0;
       setRest(null);
       draftReady.current = true;
-    })();
+    }, (message) => {
+      if (!live) return;
+      draftReady.current = false;
+      setBootError(message);
+    });
     return () => {
       live = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [bootAttempt]);
 
   useEffect(() => {
     planRef.current = plan;
@@ -949,6 +975,30 @@ export default function WorkoutScreen() {
       ],
     );
   };
+
+  const retryBoot = () => {
+    setBootError(null);
+    void (sync?.sync() ?? Promise.resolve())
+      .catch(() => {})
+      .finally(() => setBootAttempt((attempt) => attempt + 1));
+  };
+
+  if (bootError) {
+    return (
+      <ScreenCenter>
+        <View style={{ width: '100%', gap: space[3] }}>
+          <Card style={{ gap: space[2] }}>
+            <Eyebrow coral>Workout paused</Eyebrow>
+            <Text style={t.text('displayM')}>Couldn’t verify this workout</Text>
+            <Text style={t.text('bodyM', 'textMuted')}>{bootError}</Text>
+          </Card>
+          <Button title="Sync & retry" onPress={retryBoot} />
+          {workoutId && <Button title="Discard active workout" ghost onPress={discard} />}
+          <Button title="Back to Today" ghost onPress={pause} />
+        </View>
+      </ScreenCenter>
+    );
+  }
 
   if (!plan || !day) {
     return (

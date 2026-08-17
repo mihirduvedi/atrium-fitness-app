@@ -65,6 +65,7 @@ const EVIDENCE_KEYS = new Set<CoachEvidenceKey>([
   'latest_pr',
   'recovery',
   'last_workout',
+  'training_strain',
 ]);
 const COACH_PROPOSAL_ID_PATTERN = /^cp_[a-f0-9]{16}$/;
 

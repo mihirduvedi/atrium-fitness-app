@@ -1,18 +1,17 @@
 import type { Row } from '../db/dao';
 import { SYNCED_TABLES, type SqlDb, type SyncedTable } from '../db/schema';
-import { realClock, type PulledRow, type QueuedMutation, type RemoteApi, type SyncClock } from './types';
+import { realClock, type QueuedMutation, type RemoteApi, type SyncClock } from './types';
 
 /**
  * Offline-first sync (brief Part E). SQLite is the source of truth on
  * device; the server is a replica that other devices (and the future coach)
  * read.
  *
- * CONFLICT STANCE: per-row last-write-wins on updated_at, with one override —
- * local rows that still have unpushed mutations always beat pulled rows for
- * the same entity. For single-user fitness data this is acceptable: the only
- * realistic conflict is the same user editing the same workout from two
- * devices inside one sync window. REVISIT before shipping multi-device
- * concurrent editing of the same workout (also flagged in STATUS.md).
+ * CONFLICT STANCE: an unpushed local mutation always wins for its entity.
+ * Otherwise the server row is authoritative. In particular, a device clock
+ * that is ahead of server time must not make a clean local row immortal.
+ * Matching updated_at revisions may be skipped because they already identify
+ * the same committed server revision.
  */
 
 export const PUSH_BATCH_SIZE = 50;
@@ -27,6 +26,9 @@ export interface SyncResult {
 }
 
 export class SyncEngine {
+  /** Pulls share one ordered chain so cursor reads, remote snapshots, and applies cannot race. */
+  private pullTail: Promise<void> = Promise.resolve();
+
   /** Exposed for tests: backoff delay before retry n (0-based). */
   static backoffMs(attempt: number): number {
     return Math.min(BACKOFF_BASE_MS * 2 ** attempt, BACKOFF_CAP_MS);
@@ -56,7 +58,7 @@ export class SyncEngine {
     let pushed = 0;
     let attempt = 0;
     for (;;) {
-      const batch = await this.db.getAllAsync<{
+      const candidates = await this.db.getAllAsync<{
         id: string;
         seq: number;
         entity: SyncedTable;
@@ -67,8 +69,23 @@ export class SyncEngine {
       }>(
         `select id, seq, entity, entity_id, op, payload, created_at
          from mutation_queue where pushed_at is null order by seq limit ?`,
-        PUSH_BATCH_SIZE,
+        PUSH_BATCH_SIZE + 1,
       );
+      let batch = candidates.slice(0, PUSH_BATCH_SIZE);
+
+      // A Coach deload workout and its side-table marker are queued
+      // consecutively. Keep that pair in one remote batch so the remote can
+      // publish them atomically; if the pair straddles the 50-row boundary,
+      // leave the workout for the next batch with its marker.
+      const boundary = batch[batch.length - 1];
+      const lookahead = candidates[PUSH_BATCH_SIZE];
+      if (
+        boundary?.entity === 'workouts'
+        && lookahead?.entity === 'workout_training_intents'
+        && boundary.entity_id === lookahead.entity_id
+      ) {
+        batch = batch.slice(0, -1);
+      }
       if (batch.length === 0) return { pushed };
 
       const mutations: QueuedMutation[] = batch.map((m) => ({ ...m, payload: JSON.parse(m.payload) as Row }));
@@ -93,13 +110,20 @@ export class SyncEngine {
     }
   }
 
+  /** Serialize pulls for this engine even when foreground/background callers overlap. */
+  pull(): Promise<{ pulled: number }> {
+    const pending = this.pullTail.then(() => this.pullOnce());
+    this.pullTail = pending.then(() => undefined, () => undefined);
+    return pending;
+  }
+
   /**
-   * Pull rows where updated_at > last_pulled_at and apply with per-row LWW.
-   * Local unpushed mutations always win over pulled rows for the same
-   * entity. Soft-deleted rows tombstone locally (rows arrive with deleted_at
-   * set; we upsert them like any other row — readers filter on deleted_at).
+   * Pull rows after the server cursor. Dirty local entities win; every clean
+   * row accepts the server revision, including tombstones older than a
+   * device-generated local timestamp. Apply and cursor movement are one
+   * isolated transaction, so consumers never observe a partial pull.
    */
-  async pull(): Promise<{ pulled: number }> {
+  private async pullOnce(): Promise<{ pulled: number }> {
     const cursor = await this.db.getFirstAsync<{ last_pulled_at: string }>(
       'select last_pulled_at from sync_cursors where user_id = ? and device_id = ?',
       this.userId,
@@ -108,42 +132,47 @@ export class SyncEngine {
     const since = cursor?.last_pulled_at ?? '1970-01-01T00:00:00.000Z';
     const { rows, serverTime } = await this.remote.pull(since);
 
-    const dirty = new Set(
-      (
-        await this.db.getAllAsync<{ entity: string; entity_id: string }>(
-          'select distinct entity, entity_id from mutation_queue where pushed_at is null',
-        )
-      ).map((r) => `${r.entity}:${r.entity_id}`),
-    );
-
     let applied = 0;
-    await this.db.withTransactionAsync(async () => {
+    await this.withPullTransaction(async (transaction) => {
       for (const { table, row } of rows) {
         if (!(SYNCED_TABLES as readonly string[]).includes(table)) continue;
         const pk = table === 'profiles' ? 'user_id' : 'id';
         const id = String(row[pk]);
-        if (dirty.has(`${table}:${id}`)) continue; // local unpushed wins
 
-        const local = await this.db.getFirstAsync<{ updated_at: string }>(
+        // This check deliberately happens inside the same exclusive
+        // transaction as the upsert. A local edit queued after the network
+        // response but before apply must still win.
+        const dirty = await transaction.getFirstAsync<{ dirty: number }>(
+          `select 1 as dirty
+             from mutation_queue
+            where entity = ? and entity_id = ? and pushed_at is null
+            limit 1`,
+          table,
+          id,
+        );
+        if (dirty) continue;
+
+        const local = await transaction.getFirstAsync<{ updated_at: string }>(
           `select updated_at from ${table} where ${pk} = ?`,
           id,
         );
-        if (local && String(local.updated_at) >= String(row.updated_at)) continue; // LWW
+        if (local && String(local.updated_at) === String(row.updated_at)) continue;
 
         const cols = Object.keys(row);
         const assignments = cols.filter((c) => c !== pk).map((c) => `${c} = excluded.${c}`).join(', ');
-        await this.db.runAsync(
+        await transaction.runAsync(
           `insert into ${table} (${cols.join(', ')}) values (${cols.map(() => '?').join(', ')})
            on conflict (${pk}) do update set ${assignments}`,
           ...cols.map((c) => row[c] ?? null),
         );
         applied += 1;
       }
-      await this.db.runAsync(
+      await transaction.runAsync(
         `insert into sync_cursors (user_id, device_id, last_pulled_at, updated_at)
          values (?, ?, ?, ?)
          on conflict (user_id, device_id) do update
-           set last_pulled_at = excluded.last_pulled_at, updated_at = excluded.updated_at`,
+           set last_pulled_at = excluded.last_pulled_at,
+               updated_at = excluded.updated_at`,
         this.userId,
         this.deviceId,
         serverTime,
@@ -151,6 +180,21 @@ export class SyncEngine {
       );
     });
     return { pulled: applied };
+  }
+
+  /** Native/node isolation, with Expo SQLite's exact unsupported-web fallback. */
+  private async withPullTransaction(fn: (transaction: SqlDb) => Promise<void>): Promise<void> {
+    if (this.db.withExclusiveTransactionAsync) {
+      try {
+        await this.db.withExclusiveTransactionAsync(fn);
+        return;
+      } catch (error) {
+        const unsupportedOnWeb = error instanceof Error
+          && error.message === 'withExclusiveTransactionAsync is not supported on web';
+        if (!unsupportedOnWeb) throw error;
+      }
+    }
+    await this.db.withTransactionAsync(() => fn(this.db));
   }
 
   /** Push, then pull (the Part E loop: pull after each successful push). */

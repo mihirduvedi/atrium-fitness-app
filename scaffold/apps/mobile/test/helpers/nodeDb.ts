@@ -13,7 +13,22 @@ export function openNodeDb(path = ':memory:'): SqlDb & { close(): void } {
   db.exec('pragma foreign_keys = on');
   let inTransaction = false;
 
-  return {
+  const runTransaction = async (fn: () => Promise<void>, exclusive = false) => {
+    if (inTransaction) throw new Error('nested transaction');
+    inTransaction = true;
+    db.exec(exclusive ? 'begin immediate' : 'begin');
+    try {
+      await fn();
+      db.exec('commit');
+    } catch (e) {
+      db.exec('rollback');
+      throw e;
+    } finally {
+      inTransaction = false;
+    }
+  };
+
+  const adapter: SqlDb & { close(): void } = {
     async execAsync(sql) {
       db.exec(sql);
     },
@@ -26,22 +41,13 @@ export function openNodeDb(path = ':memory:'): SqlDb & { close(): void } {
     async getFirstAsync<T>(sql: string, ...params: SqlParam[]) {
       return (db.prepare(sql).get(...params) as T | undefined) ?? null;
     },
-    async withTransactionAsync(fn) {
-      if (inTransaction) throw new Error('nested transaction');
-      inTransaction = true;
-      db.exec('begin');
-      try {
-        await fn();
-        db.exec('commit');
-      } catch (e) {
-        db.exec('rollback');
-        throw e;
-      } finally {
-        inTransaction = false;
-      }
+    withTransactionAsync: (fn) => runTransaction(fn),
+    async withExclusiveTransactionAsync(fn) {
+      await runTransaction(() => fn(adapter), true);
     },
     close() {
       db.close();
     },
   };
+  return adapter;
 }

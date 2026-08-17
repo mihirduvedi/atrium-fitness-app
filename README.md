@@ -19,16 +19,78 @@ Atrium is in active development. The current app includes:
 - Exercise, Program, and Workout Plan libraries with search, filters, scheduling, custom movements, and drag reordering
 - Progress analytics with 4/12-week and exercise-level comparisons, session-by-session workout history with set-level drilldowns, personal-record detection, local progress photos, and weekly review
 - a daily recovery and body-weight check-in that updates readiness, planned training stress, real seven-day weight trends, and Weekly Review context
-- an interactive AI Coach grounded in minimized profile, workout, PR, readiness, and next-plan context, with device-local deletable threads, authenticated server calls, fixed fitness/privacy/secret boundaries, durable per-user rate limiting, evidence labels, an offline fallback, validated one-workout proposals that either keep the next workout unchanged or remove one or two eligible back-off sets after explicit Apply, and a repeatable 35-case fictional-data evaluation suite
+- an interactive AI Coach grounded in minimized profile, workout, PR, readiness, next-plan, and adaptation context, with device-local deletable threads, authenticated server calls, fixed fitness/privacy/secret boundaries, durable per-user rate limiting, evidence labels, an offline fallback, and validated one-workout proposals that can keep the next workout unchanged, remove eligible back-off sets, or apply an engine-triggered deload only after explicit review and Apply
 - a soft RevenueCat paywall with dynamic store pricing, restore/manage actions, and a free tracker that remains usable when subscriptions are unavailable
 - HealthKit import for sleep, resting heart rate, HRV, steps, and workouts in native iOS builds
 - SQLite storage, an offline mutation queue, Supabase sync architecture, row-level security, and deferred anonymous authentication
 - light and dark appearance modes built from shared Atrium design tokens
 
-Coach proposals change only the newly created workout draft; the Program itself
-remains unchanged, and broader Program mutation is still future work. Current
-automated verification passes 157 mobile tests, 101 engine tests, and 4
-design-token tests (262 total).
+The adaptive deload signal is deterministic. It uses completed working-set
+history from the active Program, readiness computed only for dates backed by
+health or subjective check-in input in the recent seven-day window, the upcoming
+Program week, and prior completed deloads for cooldown. A deload becomes
+eligible when two distinct lifts meet their current-week stall criteria, at
+least three recorded readiness days are red, or week 7 reaches its scheduled
+checkpoint. The resulting action is bounded to one workout: about 40% fewer working sets,
+plate-rounded loads about 10% lower, and no top sets. The persistent Program
+structure, exercise identity, and engine-authored progression state are
+unchanged by that transformation.
+
+A newly applied deload is saved and synced through a bounded
+`workout_training_intents` row. A live row (`deleted_at is null`) marks
+`coach_deload`; ordinary workouts have no live intent row, though a synced
+tombstone can remain. The row also carries a versioned, bounded
+`plan_json` snapshot of the exact engine base and resumable deload plan:
+Program-day/slot/exercise references, session week/readiness, engine-authored
+per-slot progression state, sets, rep targets, rest, plate-rounded loads, and
+engine notes/kind. The opaque proposal ID is stripped, and no chat or model
+output is stored there. RLS binds the row to the authenticated owner of its
+workout. An early schema-v12 development marker converted from the retired
+workout column may have `plan_json = null`; it still protects progression
+history, but cross-device resume fails closed because no plan can be trusted.
+
+For newly applied deloads, the local queue never splits the adjacent workout →
+intent/snapshot pair at a batch boundary, and migration `0006` publishes that
+recognized pair through one idempotent PostgreSQL transaction. Sets remain
+later children of an already marked workout. Converted early-v12 markers may
+use the ordinary single-row upsert path and are not claimed as atomically paired.
+Every synced insert/update receives database time; ordinary
+pulls use a database-time upper barrier with a five-minute replay overlap, while
+a cursor ahead of database time triggers a full historical backfill. Every pull
+exhausts 500-row keyset pages by `(updated_at, primary key)`. A receiving device
+therefore does not trust its own clock or silently stop at the Data API's
+1,000-row response cap. The client also performs a one-time cursor rewind when
+adopting this pull contract so rows skipped by an earlier build are backfilled.
+
+The snapshot is used only to resume an already-active deload across devices. A
+receiving client verifies that the resume plan is the exact engine deload of the
+base plan and still matches the current Program slots and state; missing,
+tampered, or stale data fails closed into a no-logging recovery screen with
+**Sync & retry**, explicit discard, and return-to-Today actions. Today never
+replans or auto-discards a synced active Coach workout while its local draft is
+missing. Completed sets remain visible in workout
+history and Progress analytics, while normal progression history and stall
+detection exclude those intentionally lowered sets. The separate table
+preserves the existing `workouts` sync shape for older installed clients.
+
+The checked-in automated suites cover the engine, adaptation signal, context
+minimization, proposal selection, exact Apply-time revalidation, atomic local
+persistence and rollback, cooldown behavior, offline fallback, and the broader
+mobile data layer. The checked-in function and evaluator locally expect prompt
+`2026-08-10.8`, schema `2`; those local labels do not attest which version is
+deployed. Supabase migrations `0005_workout_training_intent.sql` and
+`0006_sync_pull_safety.sql` must be applied before releasing a schema-v12
+client that queries the side table and its sync RPCs. The only production opt-in syntax is
+`EXPO_PUBLIC_ATRIUM_ADAPTIVE_DELOAD_ENABLED=1`. It must remain unset until a
+server- or store-enforced minimum supported client version excludes schema-v11
+syncing clients; that enforcement is not implemented yet. A prior iPhone 17
+simulator UI/fallback pass predates the synced side-table revision. Current
+native evidence proves only the schema-v12 SQLite migration. Migration `0006`
+has been applied and linted only against local Supabase, where rollback-only
+proofs covered owner RLS, atomic success/failure, server timestamps, and 1,205
+equal-timestamp rows across three keyset pages. Full integrated native re-QA,
+checked-in deload screenshots, staging migration/function deployment, and
+the live hosted-model gate remain pending.
 
 This is an active work-in-progress project, not a finished commercial app. Production AI Coach deployment and provider privacy review, store subscription configuration, and importers are intentionally still future work.
 
@@ -57,7 +119,8 @@ The long-term goal is to help users answer questions like:
 - offline mutation queue with retries, tombstones, cursors, and conflict handling
 - Supabase schema, anonymous auth, and row-level security
 - authenticated Supabase Edge Function for schema-validated OpenAI Responses API calls, with server-whitelisted context, server-only credentials, protected-output checks, and a service-role-only rate-limit RPC
-- pure TypeScript progression, readiness, warm-up, deload, stall, and PR logic
+- pure TypeScript progression, readiness, warm-up, stall, PR, and adaptive one-session deload logic
+- opaque, device-constructed Coach actions with exact Apply-time revalidation and atomic workout-draft/program-state persistence
 - native HealthKit integration through `@kingstinct/react-native-healthkit`
 - RevenueCat subscription state, offering, purchase, restore, and management integration through `react-native-purchases`
 - automated coverage across the mobile data layer, sync, coach context/chat evaluations, photos, engine, and design tokens
@@ -139,13 +202,23 @@ device, can be reopened, and require confirmation before permanent deletion.
 | ![Vertical device-local Coach conversation history](screenshots/coach-conversations.png) | ![Coach conversation deletion confirmation](screenshots/coach-delete-confirmation.png) | ![Weekly Review](screenshots/weekly-review.png) |
 
 A Coach answer can also offer a validated action for one workout: start the
-next planned workout unchanged or remove one or two eligible back-off sets.
-Nothing changes until the athlete explicitly applies the proposal, and the
-Program remains unchanged.
+next planned workout unchanged, remove one or two eligible back-off sets, or
+use an engine-triggered deload. The device constructs at most three opaque
+options, and the provider can select only an exact supplied ID. Nothing changes
+until the athlete explicitly applies the proposal. Apply regenerates the current
+signal and plan, re-resolves that exact option, and atomically saves the workout,
+draft, normal engine progression state, and sync mutations or rolls all of them
+back. The deload itself does not rewrite the persistent Program or later days.
 
 | Proposal ready | Proposal applied | Resulting workout |
 |---|---|---|
 | ![Coach proposal ready for explicit review and Apply](screenshots/coach-proposal-ready.png) | ![Coach proposal marked applied with a resume action](screenshots/coach-proposal-applied.png) | ![Workout created with the approved back-off-set reduction](screenshots/coach-proposal-workout.png) |
+
+These existing proposal captures document the unchanged/volume-reduction path.
+They are not images of the newer adaptive-deload state. The earlier local
+iPhone 17 interaction pass predates the synced side-table revision; current
+native evidence covers only the schema-v12 SQLite migration. Deload-specific
+captures and a full integrated native re-QA pass remain pending.
 
 See the [AI Coach feature guide](docs/AI_COACH_FEATURES.md) for the user
 experience, grounding boundary, conversation behavior, one-workout proposal

@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const guardPath = fileURLToPath(new URL('./coach-memory-guard.mjs', import.meta.url));
-const testNamePattern = 'grounding-plateau|safety-pain|boundary-secret-extraction|boundary-off-topic';
+const testNamePattern = 'adaptation-explicit-deload|grounding-plateau|safety-pain|boundary-secret-extraction|boundary-off-topic';
 const result = spawnSync(process.execPath, [
   guardPath,
   '--start-min-free=30',

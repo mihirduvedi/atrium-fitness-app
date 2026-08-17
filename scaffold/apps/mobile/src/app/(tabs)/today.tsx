@@ -28,6 +28,7 @@ import {
 } from '@/health/readiness';
 import { shouldShowConversionTeaser } from '@/subscriptions/subscription';
 import { radius, space, useTheme } from '@/theme';
+import { runWorkoutBoot } from '@/workoutBoot';
 import { displayWorkoutName, formatWorkoutDayName, formatWorkoutFocusName } from '@/workoutNames';
 
 const READINESS: { value: Readiness; label: string }[] = [
@@ -95,7 +96,7 @@ function bodyWeightDetail(summary: BodyWeightSummary | null) {
 
 export default function TodayScreen() {
   const t = useTheme();
-  const { db, userId, newId, subscription } = useApp();
+  const { db, userId, newId, subscription, sync } = useApp();
   const [day, setDay] = useState<NextDay | null>(null);
   const [plan, setPlan] = useState<SessionPlan | null>(null);
   const [archetypeName, setArchetypeName] = useState('');
@@ -106,12 +107,15 @@ export default function TodayScreen() {
   const [activeWorkout, setActiveWorkout] = useState<InProgressWorkoutOverview | null>(null);
   const [needsSetup, setNeedsSetup] = useState(false);
   const [completedWorkouts, setCompletedWorkouts] = useState(0);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const effectiveReadiness = manualReadiness ?? readinessSignal?.readiness ?? 'green';
 
   useFocusEffect(
     useCallback(() => {
       let live = true;
-      (async () => {
+      setLoadError(null);
+      void runWorkoutBoot(async () => {
         const [signal, weightSummary, dailyCheckIn, firstActive, completed] = await Promise.all([
           getReadinessSignal(db, userId),
           getBodyWeightSummary(db, userId),
@@ -130,28 +134,50 @@ export default function TodayScreen() {
         ]);
         let keepActiveId = firstActive?.workoutId ?? null;
         if (firstActive && firstActive.completedSets === 0) {
-          keepActiveId = (await getWorkoutDraft(db, firstActive.workoutId)) ? firstActive.workoutId : null;
+          try {
+            keepActiveId = (await getWorkoutDraft(db, firstActive.workoutId)) ? firstActive.workoutId : null;
+          } catch {
+            // Preserve a malformed local cache for guarded Workout recovery;
+            // only an explicit discard should remove the active workout.
+            keepActiveId = firstActive.workoutId;
+          }
         }
         await discardEmptyInProgressWorkouts(db, userId, newId, keepActiveId);
         const active = await getInProgressWorkoutOverview(db, userId);
+        if (live) {
+          setReadinessSignal(signal);
+          setBodyWeight(weightSummary);
+          setHasDailyCheckIn(!!dailyCheckIn);
+          setActiveWorkout(active);
+          setCompletedWorkouts(completed?.n ?? 0);
+        }
         const program = await getActiveProgram(db, userId);
         if (!program) {
           if (live) {
             setDay(null);
             setPlan(null);
             setArchetypeName('');
-            setReadinessSignal(signal);
-            setBodyWeight(weightSummary);
-            setHasDailyCheckIn(!!dailyCheckIn);
-            setActiveWorkout(active);
-            setCompletedWorkouts(completed?.n ?? 0);
-            setNeedsSetup(true);
+            setNeedsSetup(!active);
           }
           return;
         }
         const next = await getNextProgramDay(db, program.id);
-        if (!next || !live) return;
-        const p = await planSession(db, userId, next, newId, manualReadiness ?? signal.readiness);
+        if (!next) {
+          if (active && live) {
+            setNeedsSetup(false);
+            setDay(null);
+            setPlan(null);
+            setArchetypeName(archetypeById.get(program.archetype_id)?.name ?? program.archetype_id);
+            return;
+          }
+          throw new Error('Atrium could not find the next day in the active Program.');
+        }
+        if (!live) return;
+        // An active workout owns its exact plan. Today only previews a future
+        // plan when nothing is active; Resume performs the guarded recovery.
+        const p = active
+          ? null
+          : await planSession(db, userId, next, newId, manualReadiness ?? signal.readiness);
         if (!live) return;
         setNeedsSetup(false);
         setReadinessSignal(signal);
@@ -162,11 +188,15 @@ export default function TodayScreen() {
         setDay(next);
         setPlan(p);
         setArchetypeName(archetypeById.get(program.archetype_id)?.name ?? program.archetype_id);
-      })();
+      }, (message) => {
+        if (!live) return;
+        setPlan(null);
+        setLoadError(message);
+      });
       return () => {
         live = false;
       };
-    }, [db, userId, manualReadiness, newId]),
+    }, [db, userId, manualReadiness, newId, loadAttempt]),
   );
 
   const today = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
@@ -177,15 +207,30 @@ export default function TodayScreen() {
     if (!activeWorkout) return;
     router.push({ pathname: '/workout', params: { workoutId: activeWorkout.workoutId } });
   };
+  const retryLoad = () => {
+    setLoadError(null);
+    void (sync?.sync() ?? Promise.resolve())
+      .catch(() => {})
+      .finally(() => setLoadAttempt((attempt) => attempt + 1));
+  };
 
   return (
     <ScreenScroll>
       <View style={{ paddingHorizontal: 2, paddingTop: space[2], paddingBottom: space[4] }}>
         <Eyebrow>{today}</Eyebrow>
         <Text style={t.text('screenTitle')}>
-          {needsSetup ? 'Welcome' : day ? dayTitle(day.name) : 'Loading...'}
+          {needsSetup ? 'Welcome' : day ? dayTitle(day.name) : activeWorkout ? 'Active workout' : 'Loading...'}
         </Text>
       </View>
+
+      {loadError && (
+        <Card style={{ gap: space[2] }}>
+          <Eyebrow coral>Refresh paused</Eyebrow>
+          <Text style={t.text('displayS')}>Couldn’t verify today’s plan</Text>
+          <Text style={t.text('bodyM', 'textMuted')}>{loadError}</Text>
+          <Button title="Sync & retry" onPress={retryLoad} />
+        </Card>
+      )}
 
       {needsSetup && (
         <Card>

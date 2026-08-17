@@ -7,7 +7,7 @@ export { nextPrescription } from './progress';
 export { applyReadiness } from './readiness';
 export { renderWarmups } from './warmups';
 export { detectStalls } from './stalls';
-export { shouldDeload } from './deload';
+export { applySessionDeload, SESSION_DELOAD_PRESCRIPTION, shouldDeload } from './deload';
 export { validateChange, type BoundsContext } from './bounds';
 export { detectPRs } from './prs';
 export {

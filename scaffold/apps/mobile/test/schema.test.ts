@@ -1,8 +1,42 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { migrate, SYNCED_TABLES } from '../src/db/schema';
 import { openNodeDb } from './helpers/nodeDb';
 
 describe('on-device SQLite schema', () => {
+  it('server-stamps every insert in the deload workout sync chain', () => {
+    const sql = readFileSync(
+      resolve(process.cwd(), '../../supabase/migrations/0005_workout_training_intent.sql'),
+      'utf8',
+    );
+    for (const trigger of ['workouts_updated_at', 'sets_updated_at', 'workout_training_intents_updated_at']) {
+      expect(sql).toMatch(new RegExp(`create trigger ${trigger}\\s+before insert or update`, 'i'));
+    }
+  });
+
+  it('defines the server-authoritative paginated sync contract for every synced table', () => {
+    const sql = readFileSync(
+      resolve(process.cwd(), '../../supabase/migrations/0006_sync_pull_safety.sql'),
+      'utf8',
+    );
+    for (const rpc of [
+      'sync_server_time',
+      'sync_pull_page',
+      'sync_upsert_coach_deload_workout',
+    ]) {
+      expect(sql).toMatch(new RegExp(`create or replace function public\\.${rpc}\\(`, 'i'));
+    }
+    for (const table of SYNCED_TABLES) {
+      expect(sql).toMatch(new RegExp(
+        `create trigger ${table}_updated_at\\s+before insert or update on public\\.${table}`,
+        'i',
+      ));
+    }
+    expect(sql).toMatch(/security invoker/gi);
+    expect(sql).toMatch(/page size must be between 1 and 500/i);
+  });
+
   it('applies cleanly and is idempotent', async () => {
     const db = openNodeDb();
     await migrate(db);
@@ -33,6 +67,9 @@ describe('on-device SQLite schema', () => {
     expect(await cols('workouts')).toEqual([
       'id', 'user_id', 'program_day_id', 'started_at', 'ended_at', 'notes',
       'readiness_at_start', 'updated_at', 'deleted_at',
+    ]);
+    expect(await cols('workout_training_intents')).toEqual([
+      'id', 'intent', 'plan_json', 'updated_at', 'deleted_at',
     ]);
     expect(await cols('sets')).toEqual([
       'id', 'workout_id', 'exercise_id', 'set_index', 'weight', 'reps',
@@ -67,6 +104,8 @@ describe('on-device SQLite schema', () => {
     expect(SYNCED_TABLES).not.toContain('workout_plan_settings' as never);
     expect(SYNCED_TABLES).not.toContain('coach_threads' as never);
     expect(SYNCED_TABLES).not.toContain('coach_messages' as never);
+    expect(SYNCED_TABLES.indexOf('workouts')).toBeLessThan(SYNCED_TABLES.indexOf('workout_training_intents'));
+    expect(SYNCED_TABLES.indexOf('workout_training_intents')).toBeLessThan(SYNCED_TABLES.indexOf('sets'));
     // every synced table carries updated_at + deleted_at (tombstones for sync)
     for (const t of SYNCED_TABLES) {
       const c = await cols(t);
@@ -214,6 +253,290 @@ describe('on-device SQLite schema', () => {
     );
     expect(cols).toContain('history_content');
     expect(row?.history_content).toBe('');
+    db.close();
+  });
+
+  it('adds the intent side table without changing a schema-v11 workout row', async () => {
+    const db = openNodeDb();
+    await db.execAsync(`
+      create table workouts (
+        id text primary key,
+        user_id text not null,
+        program_day_id text,
+        started_at text not null,
+        ended_at text,
+        notes text,
+        readiness_at_start integer,
+        updated_at text not null,
+        deleted_at text
+      );
+      insert into workouts (
+        id, user_id, program_day_id, started_at, ended_at, notes,
+        readiness_at_start, updated_at, deleted_at
+      ) values (
+        'workout-1', 'user-1', null, '2026-08-01T10:00:00.000Z',
+        '2026-08-01T11:00:00.000Z', null, 74,
+        '2026-08-01T11:00:00.000Z', null
+      );
+      pragma user_version = 11;
+    `);
+
+    await migrate(db);
+    const workoutColumns = (await db.getAllAsync<{ name: string }>(
+      'pragma table_info(workouts)',
+    )).map((column) => column.name);
+    expect(workoutColumns).toEqual([
+      'id', 'user_id', 'program_day_id', 'started_at', 'ended_at', 'notes',
+      'readiness_at_start', 'updated_at', 'deleted_at',
+    ]);
+    await db.runAsync(
+      `insert into workout_training_intents (id, intent, updated_at, deleted_at)
+       values (?, 'coach_deload', ?, null)`,
+      'workout-1',
+      '2026-08-01T11:00:00.000Z',
+    );
+    expect(await db.getFirstAsync<{ intent: string }>(
+      'select intent from workout_training_intents where id = ?',
+      'workout-1',
+    )).toEqual({ intent: 'coach_deload' });
+    db.close();
+  });
+
+  it('converts the early v12 workout column and sanitizes queued wire payloads', async () => {
+    const db = openNodeDb();
+    const timestamp = '2026-08-01T11:00:00.000Z';
+    await db.execAsync(`
+      create table workouts (
+        id text primary key,
+        user_id text not null,
+        program_day_id text,
+        started_at text not null,
+        ended_at text,
+        notes text,
+        readiness_at_start integer,
+        updated_at text not null,
+        deleted_at text,
+        training_intent text not null default 'normal'
+          check (training_intent in ('normal', 'coach_deload'))
+      );
+      create table mutation_queue (
+        id text not null unique,
+        seq integer primary key autoincrement,
+        entity text not null,
+        entity_id text not null,
+        op text not null,
+        payload text not null,
+        created_at text not null,
+        pushed_at text
+      );
+      create table sets (
+        id text primary key,
+        workout_id text not null references workouts (id),
+        exercise_id text not null,
+        set_index integer not null,
+        weight real,
+        reps integer,
+        is_warmup integer not null default 0,
+        completed_at text not null,
+        updated_at text not null,
+        deleted_at text
+      );
+      insert into workouts (
+        id, user_id, program_day_id, started_at, ended_at, notes,
+        readiness_at_start, updated_at, deleted_at, training_intent
+      ) values (
+        'legacy-deload', 'user-1', null, '2026-08-01T10:00:00.000Z',
+        '${timestamp}', null, 74, '${timestamp}', null, 'coach_deload'
+      );
+      insert into sets (
+        id, workout_id, exercise_id, set_index, weight, reps, is_warmup,
+        completed_at, updated_at, deleted_at
+      ) values (
+        'legacy-set', 'legacy-deload', 'squat', 0, 185, 5, 0,
+        '${timestamp}', '${timestamp}', null
+      );
+      insert into mutation_queue (
+        id, entity, entity_id, op, payload, created_at, pushed_at
+      ) values (
+        'legacy-workout-mutation', 'workouts', 'legacy-deload', 'upsert',
+        '{"id":"legacy-deload","training_intent":"coach_deload","updated_at":"${timestamp}"}',
+        '${timestamp}', null
+      ), (
+        'legacy-set-mutation', 'sets', 'legacy-set', 'upsert',
+        '{"id":"legacy-set","workout_id":"legacy-deload","weight":185}',
+        '${timestamp}', null
+      );
+      pragma user_version = 12;
+    `);
+
+    await migrate(db);
+    expect((await db.getAllAsync<{ name: string }>('pragma table_info(workouts)'))
+      .map((column) => column.name)).not.toContain('training_intent');
+    expect(await db.getFirstAsync<{ intent: string }>(
+      'select intent from workout_training_intents where id = ?',
+      'legacy-deload',
+    )).toEqual({ intent: 'coach_deload' });
+    const intent = await db.getFirstAsync<{ updated_at: string }>(
+      'select updated_at from workout_training_intents where id = ?',
+      'legacy-deload',
+    );
+    const workoutMutation = await db.getFirstAsync<{ payload: string }>(
+      'select payload from mutation_queue where id = ?',
+      'legacy-workout-mutation',
+    );
+    expect(JSON.parse(workoutMutation!.payload)).toEqual({
+      id: 'legacy-deload',
+      updated_at: timestamp,
+    });
+    const intentMutation = await db.getFirstAsync<{ payload: string; created_at: string }>(
+      `select payload, created_at from mutation_queue
+        where entity = 'workout_training_intents' and entity_id = ?`,
+      'legacy-deload',
+    );
+    expect(intent?.updated_at).not.toBe(timestamp);
+    expect(intentMutation?.created_at).toBe(intent?.updated_at);
+    expect(JSON.parse(intentMutation!.payload)).toMatchObject({
+      id: 'legacy-deload',
+      intent: 'coach_deload',
+      updated_at: intent?.updated_at,
+      deleted_at: null,
+    });
+    expect((await db.getAllAsync<{ entity: string; entity_id: string }>(
+      `select entity, entity_id
+         from mutation_queue
+        where pushed_at is null
+        order by seq`,
+    )).map((mutation) => `${mutation.entity}:${mutation.entity_id}`)).toEqual([
+      'workouts:legacy-deload',
+      'workout_training_intents:legacy-deload',
+      'sets:legacy-set',
+    ]);
+    expect(await db.getFirstAsync<{
+      id: string;
+      op: string;
+      payload: string;
+      created_at: string;
+    }>(
+      `select id, op, payload, created_at
+         from mutation_queue
+        where entity = 'sets' and entity_id = ?`,
+      'legacy-set',
+    )).toEqual({
+      id: 'legacy-set-mutation',
+      op: 'upsert',
+      payload: '{"id":"legacy-set","workout_id":"legacy-deload","weight":185}',
+      created_at: timestamp,
+    });
+    expect((await db.getFirstAsync<{ total: number }>(
+      `select count(*) as total from mutation_queue
+        where entity = 'workout_training_intents'
+          and entity_id = 'legacy-deload'
+          and pushed_at is null`,
+    ))?.total).toBe(1);
+    await migrate(db);
+    expect((await db.getFirstAsync<{ total: number }>(
+      `select count(*) as total from mutation_queue
+        where entity = 'workout_training_intents'
+          and entity_id = 'legacy-deload'
+          and pushed_at is null`,
+    ))?.total).toBe(1);
+    db.close();
+  });
+
+  it('rewinds the shared sync cursor once so v12 can backfill historical intents', async () => {
+    const db = openNodeDb();
+    const previousCursor = '2026-08-15T12:00:00.000Z';
+    const laterCursor = '2026-08-17T12:00:00.000Z';
+    await db.execAsync(`
+      create table sync_cursors (
+        user_id text not null,
+        device_id text not null,
+        last_pulled_at text not null default '1970-01-01T00:00:00.000Z',
+        updated_at text not null,
+        primary key (user_id, device_id)
+      );
+      create table device_meta (
+        key text primary key,
+        value text not null
+      );
+      insert into sync_cursors (user_id, device_id, last_pulled_at, updated_at)
+      values ('user-1', 'device-1', '${previousCursor}', '${previousCursor}');
+      pragma user_version = 11;
+    `);
+
+    await migrate(db);
+    expect(await db.getFirstAsync<{ last_pulled_at: string }>(
+      'select last_pulled_at from sync_cursors where user_id = ? and device_id = ?',
+      'user-1',
+      'device-1',
+    )).toEqual({ last_pulled_at: '1970-01-01T00:00:00.000Z' });
+    expect(await db.getFirstAsync<{ value: string }>(
+      'select value from device_meta where key = ?',
+      'schema-v12-workout-training-intents-cursor-backfill',
+    )).toEqual({ value: '1' });
+    expect(await db.getFirstAsync<{ value: string }>(
+      'select value from device_meta where key = ?',
+      'server-authoritative-paginated-pull-cursor-v1',
+    )).toEqual({ value: '1' });
+
+    await db.runAsync(
+      `update sync_cursors
+          set last_pulled_at = ?, updated_at = ?
+        where user_id = ? and device_id = ?`,
+      laterCursor,
+      laterCursor,
+      'user-1',
+      'device-1',
+    );
+    await migrate(db);
+    expect(await db.getFirstAsync<{ last_pulled_at: string }>(
+      'select last_pulled_at from sync_cursors where user_id = ? and device_id = ?',
+      'user-1',
+      'device-1',
+    )).toEqual({ last_pulled_at: laterCursor });
+    db.close();
+  });
+
+  it('rewinds an existing v12 cursor once for the server-authoritative paginated pull contract', async () => {
+    const db = openNodeDb();
+    await migrate(db);
+    const futureCursor = '2030-08-17T12:00:00.000Z';
+    const laterCursor = '2031-08-17T12:00:00.000Z';
+    await db.runAsync(
+      `insert into sync_cursors (user_id, device_id, last_pulled_at, updated_at)
+       values (?, ?, ?, ?)`,
+      'user-1',
+      'device-1',
+      futureCursor,
+      futureCursor,
+    );
+    await db.runAsync(
+      'delete from device_meta where key = ?',
+      'server-authoritative-paginated-pull-cursor-v1',
+    );
+
+    await migrate(db);
+    expect(await db.getFirstAsync<{ last_pulled_at: string }>(
+      'select last_pulled_at from sync_cursors where user_id = ? and device_id = ?',
+      'user-1',
+      'device-1',
+    )).toEqual({ last_pulled_at: '1970-01-01T00:00:00.000Z' });
+
+    await db.runAsync(
+      `update sync_cursors
+          set last_pulled_at = ?, updated_at = ?
+        where user_id = ? and device_id = ?`,
+      laterCursor,
+      laterCursor,
+      'user-1',
+      'device-1',
+    );
+    await migrate(db);
+    expect(await db.getFirstAsync<{ last_pulled_at: string }>(
+      'select last_pulled_at from sync_cursors where user_id = ? and device_id = ?',
+      'user-1',
+      'device-1',
+    )).toEqual({ last_pulled_at: laterCursor });
     db.close();
   });
 

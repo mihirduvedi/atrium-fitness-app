@@ -3,6 +3,7 @@ import {
   getActiveProgram,
   getInProgressWorkoutOverview,
   getNextProgramDay,
+  getWorkoutTrainingIntent,
   getWorkoutDraft,
   previewProgramDay,
 } from '../db/queries';
@@ -10,11 +11,18 @@ import type { SqlDb } from '../db/schema';
 import { getReadinessSignal, type ReadinessSignal } from '../health/readiness';
 import { displayWorkoutName, formatWorkoutDayName } from '../workoutNames';
 import {
+  buildCoachAdaptationSignal,
+  coachDeviceDateKey,
+  type CoachAdaptationSignal,
+} from './adaptation';
+import {
   buildCoachProposalSet,
   coachProposalIdFromPlan,
+  coachProposalKindFromPlan,
   toCoachModelProposalOptions,
   type CoachModelProposalOption,
   type CoachProposalSet,
+  type CoachProposalKind,
 } from './proposals';
 
 interface WorkoutRow {
@@ -94,7 +102,8 @@ export type CoachEvidenceKey =
   | 'next_session'
   | 'latest_pr'
   | 'recovery'
-  | 'last_workout';
+  | 'last_workout'
+  | 'training_strain';
 
 export interface CoachEvidence {
   key: CoachEvidenceKey;
@@ -130,6 +139,7 @@ export interface CoachContextPack {
   recentWorkouts: CoachWorkoutContext[];
   prSignals: CoachPrSignal[];
   readiness: ReadinessSignal;
+  adaptation: CoachAdaptationSignal | null;
   facts: string[];
   evidence: CoachEvidence[];
   proposalSet: CoachProposalSet | null;
@@ -138,6 +148,7 @@ export interface CoachContextPack {
     hasActiveWorkout: boolean;
     activeWorkoutId: string | null;
     activeProposalId: string | null;
+    activeProposalKind: CoachProposalKind | null;
   };
   modelContext: {
     profile: CoachProfileContext | null;
@@ -145,7 +156,23 @@ export interface CoachContextPack {
     currentWeek: CoachWeekContext;
     recentWorkouts: CoachModelWorkoutContext[];
     prSignals: CoachModelPrSignal[];
-    recovery: Pick<ReadinessSignal, 'score' | 'readiness' | 'title' | 'body'>;
+    recovery: Pick<ReadinessSignal, 'score' | 'readiness' | 'title' | 'body' | 'source'>;
+    adaptation: {
+      stalled: CoachAdaptationSignal['stalled'];
+      atRisk: CoachAdaptationSignal['atRisk'];
+      recentReadiness: Pick<CoachAdaptationSignal['recentReadiness'], 'observedDays' | 'redDays'>;
+      deload: {
+        deload: boolean;
+        reason: CoachAdaptationSignal['deload']['reason'];
+        prescription: {
+          scope: 'next_workout';
+          volumePct: number;
+          intensityPct: number;
+          dropTopSets: boolean;
+        } | null;
+      };
+      reasonLabel: string | null;
+    } | null;
     constraints: string[];
   };
 }
@@ -261,6 +288,7 @@ function buildEvidence(args: {
   recentWorkouts: CoachWorkoutContext[];
   prSignals: CoachPrSignal[];
   readiness: ReadinessSignal;
+  adaptation: CoachAdaptationSignal | null;
 }) {
   const evidence: CoachEvidence[] = [];
   if (args.profile) {
@@ -298,6 +326,13 @@ function buildEvidence(args: {
       value: `${latest.dayName ?? 'Workout'} · ${latest.sets} sets · ${formatCompactNumber(latest.volume)} ${args.profile?.units ?? 'lb'}`,
     });
   }
+  if (args.adaptation?.reasonLabel) {
+    evidence.push({
+      key: 'training_strain',
+      label: 'Adaptation signal',
+      value: args.adaptation.reasonLabel,
+    });
+  }
   return evidence;
 }
 
@@ -315,6 +350,7 @@ export async function buildCoachContextPack(
   const previousStartKey = dateKey(previousStart);
   const previousEndKey = dateKey(previousEnd);
   const todayKey = dateKey(now);
+  const timezoneOffsetMinutes = now.getTimezoneOffset();
 
   const profileRow = await db.getFirstAsync<{
     goal: string;
@@ -354,11 +390,11 @@ export async function buildCoachContextPack(
   )).map(toWorkout);
 
   const currentWeek = workouts.filter((w) => {
-    const key = w.startedAt.slice(0, 10);
+    const key = coachDeviceDateKey(w.startedAt, timezoneOffsetMinutes);
     return key >= weekStartKey && key <= weekEndKey;
   });
   const previousWeek = workouts.filter((w) => {
-    const key = w.startedAt.slice(0, 10);
+    const key = coachDeviceDateKey(w.startedAt, timezoneOffsetMinutes);
     return key >= previousStartKey && key <= previousEndKey;
   });
   const weekVolume = currentWeek.reduce((sum, w) => sum + w.volume, 0);
@@ -373,7 +409,7 @@ export async function buildCoachContextPack(
     ? {
         id: activeProgram.id,
         archetypeId: activeProgram.archetype_id,
-        currentWeek: activeProgram.current_week,
+        currentWeek: next?.week ?? activeProgram.current_week,
         nextDayName: next?.name ? formatWorkoutDayName(next.name) : null,
         nextWeek: next?.week ?? null,
         completedThisWeek: next?.completedThisWeek ?? null,
@@ -409,7 +445,22 @@ export async function buildCoachContextPack(
     .filter((pr, index, all) => all.findIndex((x) => `${x.exercise_id}:${x.type}` === `${pr.exercise_id}:${pr.type}`) === index)
     .map((pr) => toPrSignal(pr, profile?.units ?? 'lb'));
   const readiness = await getReadinessSignal(db, userId, todayKey);
-  const evidence = buildEvidence({ profile, program, week, recentWorkouts: workouts, prSignals, readiness });
+  const adaptation = activeProgram
+    ? await buildCoachAdaptationSignal(db, userId, {
+        programId: activeProgram.id,
+        week: next?.week ?? activeProgram.current_week,
+        now,
+      })
+    : null;
+  const evidence = buildEvidence({
+    profile,
+    program,
+    week,
+    recentWorkouts: workouts,
+    prSignals,
+    readiness,
+    adaptation,
+  });
   const facts = evidence.map((item) => `${item.label}: ${item.value}`);
   const modelProgram = program ? {
     archetypeId: program.archetypeId,
@@ -420,7 +471,7 @@ export async function buildCoachContextPack(
     daysPerWeek: program.daysPerWeek,
   } : null;
   const modelWorkouts = workouts.slice(0, 12).map((workout) => ({
-    date: workout.startedAt.slice(0, 10),
+    date: coachDeviceDateKey(workout.startedAt, timezoneOffsetMinutes),
     dayName: workout.dayName,
     readinessAtStart: workout.readinessAtStart,
     volume: workout.volume,
@@ -433,22 +484,31 @@ export async function buildCoachContextPack(
     label: pr.label,
     value: pr.value,
     displayValue: pr.displayValue,
-    achievedDate: pr.achievedAt.slice(0, 10),
+    achievedDate: coachDeviceDateKey(pr.achievedAt, timezoneOffsetMinutes),
   }));
   let proposalSet: CoachProposalSet | null = null;
   if (next && readiness.readiness !== 'red') {
     try {
-      proposalSet = buildCoachProposalSet(await previewProgramDay(db, userId, next, readiness.readiness));
+      proposalSet = buildCoachProposalSet(
+        await previewProgramDay(db, userId, next, readiness.readiness),
+        adaptation?.deload,
+      );
     } catch {
       proposalSet = null;
     }
   }
   const activeWorkout = await getInProgressWorkoutOverview(db, userId);
   const activeDraft = activeWorkout ? await getWorkoutDraft(db, activeWorkout.workoutId) : null;
+  const activeTrainingIntent = activeWorkout
+    ? await getWorkoutTrainingIntent(db, activeWorkout.workoutId)
+    : null;
   const actionState = {
     hasActiveWorkout: !!activeWorkout,
     activeWorkoutId: activeWorkout?.workoutId ?? null,
     activeProposalId: coachProposalIdFromPlan(activeDraft?.plan),
+    activeProposalKind: activeTrainingIntent === 'coach_deload'
+      ? 'deload_session' as const
+      : coachProposalKindFromPlan(activeDraft?.plan),
   };
   const proposalOptions = activeWorkout || !proposalSet
     ? []
@@ -462,6 +522,7 @@ export async function buildCoachContextPack(
     recentWorkouts: workouts.slice(0, 12),
     prSignals,
     readiness,
+    adaptation,
     facts,
     evidence,
     proposalSet,
@@ -478,7 +539,27 @@ export async function buildCoachContextPack(
         readiness: readiness.readiness,
         title: readiness.title,
         body: readiness.body,
+        source: readiness.source,
       },
+      adaptation: adaptation ? {
+        stalled: adaptation.stalled,
+        atRisk: adaptation.atRisk,
+        recentReadiness: {
+          observedDays: adaptation.recentReadiness.observedDays,
+          redDays: adaptation.recentReadiness.redDays,
+        },
+        deload: {
+          deload: adaptation.deload.deload,
+          reason: adaptation.deload.reason,
+          prescription: adaptation.deload.deload && adaptation.deload.prescription ? {
+            scope: 'next_workout',
+            volumePct: adaptation.deload.prescription.volumePct,
+            intensityPct: adaptation.deload.prescription.intensityPct,
+            dropTopSets: adaptation.deload.prescription.dropTopSets,
+          } : null,
+        },
+        reasonLabel: adaptation.reasonLabel,
+      } : null,
       constraints: [
         'Explain the observed pattern before recommending a change.',
         'Keep load changes inside the program engine rules.',

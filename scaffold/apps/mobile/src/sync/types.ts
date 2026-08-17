@@ -22,9 +22,18 @@ export interface PulledRow {
  * mock whose network can be killed.
  */
 export interface RemoteApi {
-  /** Apply a batch of mutations. Must be idempotent. Throws on network failure. */
+  /**
+   * Apply a batch idempotently. Consecutive workout + Coach-intent mutations
+   * for one id are kept in the same batch so the remote can publish that pair
+   * atomically. Throws when the batch was not acknowledged; callers may retry
+   * the entire batch even when the acknowledgement was lost after commit.
+   */
   pushBatch(mutations: QueuedMutation[]): Promise<void>;
-  /** All rows for this user with updated_at > since, every synced table. */
+  /**
+   * Return a complete remote snapshot newer than `since`. `serverTime` is an
+   * authoritative normalized UTC server cursor at or after every returned
+   * revision; it must never come from the device clock.
+   */
   pull(since: string): Promise<{ rows: PulledRow[]; serverTime: string }>;
 }
 

@@ -1,28 +1,27 @@
 import {
+  applySessionDeload,
   exerciseCatalog,
   validateChange,
+  type DeloadDecision,
   type PrescribedSet,
   type Readiness,
   type SessionPlan,
 } from '@atrium/engine';
 import {
-  discardWorkout,
   getActiveProgram,
   getInProgressWorkoutOverview,
   getNextProgramDay,
   getWorkoutDraft,
-  getWorkoutOverview,
-  planSession,
   previewProgramDay,
-  saveWorkoutDraft,
-  startWorkoutWithStatus,
+  startProgramWorkoutDraftAtomic,
   type WorkoutDraftSetUi,
 } from '../db/queries';
 import type { IdFn } from '../db/dao';
 import type { SqlDb } from '../db/schema';
 import { getReadinessSignal } from '../health/readiness';
+import { buildCoachAdaptationSignal, COACH_DELOAD_PLAN_MARKER } from './adaptation';
 
-export type CoachProposalKind = 'keep_plan' | 'reduce_volume';
+export type CoachProposalKind = 'keep_plan' | 'reduce_volume' | 'deload_session';
 
 export interface CoachProposalOption {
   id: string;
@@ -36,6 +35,11 @@ export interface CoachProposalOption {
   setReduction: 0 | 1 | 2;
   beforeBackoffSets: number | null;
   afterBackoffSets: number | null;
+  deloadReason: Exclude<DeloadDecision['reason'], 'none'> | null;
+  volumeReductionPct: number | null;
+  intensityReductionPct: number | null;
+  dropTopSets: boolean;
+  triggerLabel: string | null;
 }
 
 export interface CoachModelProposalOption {
@@ -58,6 +62,7 @@ export type CoachProposalStartResult =
   | { status: 'unavailable' };
 
 const PROPOSAL_NOTE_PREFIX = 'atrium:coach-proposal:';
+const PROPOSAL_KIND_PREFIX = 'atrium:coach-proposal-kind:';
 const proposalStartTails = new WeakMap<SqlDb, Map<string, Promise<void>>>();
 
 function canonicalize(value: unknown): unknown {
@@ -88,15 +93,24 @@ export function coachPlanFingerprint(plan: SessionPlan) {
   return `pf1_${opaqueHash(JSON.stringify(canonicalize(plan)))}`;
 }
 
-function proposalId(planFingerprint: string, kind: CoachProposalKind, slotId = '', reduction = 0) {
-  return `cp_${opaqueHash(`${planFingerprint}|${kind}|${slotId}|${reduction}`)}`;
+function proposalId(planFingerprint: string, kind: CoachProposalKind, discriminator = '', reduction = 0) {
+  return `cp_${opaqueHash(`${planFingerprint}|${kind}|${discriminator}|${reduction}`)}`;
 }
 
 function displayExerciseName(exerciseId: string) {
   return exerciseCatalog[exerciseId]?.name ?? 'Primary lift';
 }
 
-export function buildCoachProposalSet(plan: SessionPlan): CoachProposalSet {
+function deloadTriggerLabel(reason: Exclude<DeloadDecision['reason'], 'none'>) {
+  if (reason === 'two_plus_stalls_same_week') return 'Multiple lifts met their stall criteria';
+  if (reason === 'readiness_red_3plus') return 'Recent readiness stayed low';
+  return 'Week 7 reached its deload checkpoint';
+}
+
+export function buildCoachProposalSet(
+  plan: SessionPlan,
+  deloadDecision: DeloadDecision | null = null,
+): CoachProposalSet {
   const planFingerprint = coachPlanFingerprint(plan);
   const options: CoachProposalOption[] = [{
     id: proposalId(planFingerprint, 'keep_plan'),
@@ -110,7 +124,34 @@ export function buildCoachProposalSet(plan: SessionPlan): CoachProposalSet {
     setReduction: 0,
     beforeBackoffSets: null,
     afterBackoffSets: null,
+    deloadReason: null,
+    volumeReductionPct: null,
+    intensityReductionPct: null,
+    dropTopSets: false,
+    triggerLabel: null,
   }];
+
+  if (deloadDecision?.deload && deloadDecision.prescription && deloadDecision.reason !== 'none') {
+    const reason = deloadDecision.reason;
+    options.push({
+      id: proposalId(planFingerprint, 'deload_session', reason),
+      kind: 'deload_session',
+      planFingerprint,
+      title: `Deload ${plan.name}`,
+      summary: `${deloadTriggerLabel(reason)}. For this workout only: target about 40% fewer working sets, plate-rounded loads about 10% lower, and no top sets; the Program stays unchanged.`,
+      actionLabel: 'Apply & start deload',
+      exerciseName: null,
+      targetSlotId: null,
+      setReduction: 0,
+      beforeBackoffSets: null,
+      afterBackoffSets: null,
+      deloadReason: reason,
+      volumeReductionPct: Math.abs(deloadDecision.prescription.volumePct),
+      intensityReductionPct: Math.abs(deloadDecision.prescription.intensityPct),
+      dropTopSets: deloadDecision.prescription.dropTopSets,
+      triggerLabel: deloadTriggerLabel(reason),
+    });
+  }
 
   const target = plan.prescriptions.find((prescription) => (
     prescription.sets.filter((set) => set.kind === 'backoff' && !set.isWarmup).length >= 2
@@ -119,7 +160,8 @@ export function buildCoachProposalSet(plan: SessionPlan): CoachProposalSet {
 
   const beforeBackoffSets = target.sets.filter((set) => set.kind === 'backoff' && !set.isWarmup).length;
   const exerciseName = displayExerciseName(target.exerciseId);
-  for (const reduction of [1, 2] as const) {
+  const reductions: readonly (1 | 2)[] = deloadDecision?.deload ? [1] : [1, 2];
+  for (const reduction of reductions) {
     if (beforeBackoffSets - reduction < 1) continue;
     const afterBackoffSets = beforeBackoffSets - reduction;
     options.push({
@@ -134,6 +176,11 @@ export function buildCoachProposalSet(plan: SessionPlan): CoachProposalSet {
       setReduction: reduction,
       beforeBackoffSets,
       afterBackoffSets,
+      deloadReason: null,
+      volumeReductionPct: null,
+      intensityReductionPct: null,
+      dropTopSets: false,
+      triggerLabel: null,
     });
   }
   return { plan, planFingerprint, options };
@@ -155,13 +202,47 @@ function sameSet(left: PrescribedSet, right: PrescribedSet) {
   return JSON.stringify(canonicalize(left)) === JSON.stringify(canonicalize(right));
 }
 
-export function applyCoachProposal(plan: SessionPlan, option: CoachProposalOption): SessionPlan {
-  const currentSet = buildCoachProposalSet(plan);
+export function applyCoachProposal(
+  plan: SessionPlan,
+  option: CoachProposalOption,
+  deloadDecision: DeloadDecision | null = null,
+): SessionPlan {
+  const currentSet = buildCoachProposalSet(plan, deloadDecision);
   const currentOption = currentSet.options.find((candidate) => candidate.id === option.id);
   if (!currentOption || option.planFingerprint !== currentSet.planFingerprint) {
     throw new Error('Coach proposal is stale.');
   }
   if (currentOption.kind === 'keep_plan') return plan;
+  if (currentOption.kind === 'deload_session') {
+    if (!deloadDecision?.deload || !deloadDecision.prescription || currentOption.deloadReason !== deloadDecision.reason) {
+      throw new Error('Coach deload proposal is no longer supported by the current signal.');
+    }
+    const proposed = applySessionDeload(plan, deloadDecision.prescription);
+    const result = validateChange(proposed, plan);
+    if (!result.ok) throw new Error(`Coach proposal failed engine validation: ${result.violations.join('; ')}`);
+    if (proposed.prescriptions.length !== plan.prescriptions.length) {
+      throw new Error('Coach deload changed plan slots.');
+    }
+    for (let index = 0; index < plan.prescriptions.length; index += 1) {
+      const before = plan.prescriptions[index]!;
+      const after = proposed.prescriptions[index]!;
+      if (
+        before.slotId !== after.slotId
+        || before.exerciseId !== after.exerciseId
+        || before.rest_s !== after.rest_s
+        || JSON.stringify(before.nextState) !== JSON.stringify(after.nextState)
+      ) {
+        throw new Error('Coach deload changed Program identity or progression state.');
+      }
+      if (after.sets.some((set) => !set.isWarmup && set.kind === 'top')) {
+        throw new Error('Coach deload retained a protected top set.');
+      }
+      if (before.sets.some((set) => !set.isWarmup) && !after.sets.some((set) => !set.isWarmup)) {
+        throw new Error('Coach deload removed every working set.');
+      }
+    }
+    return proposed;
+  }
   if (!currentOption.targetSlotId || currentOption.setReduction < 1) {
     throw new Error('Coach proposal is invalid.');
   }
@@ -209,17 +290,34 @@ export function applyCoachProposal(plan: SessionPlan, option: CoachProposalOptio
   return proposed;
 }
 
-export function markPlanWithCoachProposal(plan: SessionPlan, proposalIdValue: string): SessionPlan {
+export function markPlanWithCoachProposal(
+  plan: SessionPlan,
+  proposalIdValue: string,
+  kind?: CoachProposalKind,
+): SessionPlan {
   const marker = `${PROPOSAL_NOTE_PREFIX}${proposalIdValue}`;
   return {
     ...plan,
-    notes: [...(plan.notes ?? []).filter((note) => !note.startsWith(PROPOSAL_NOTE_PREFIX)), marker],
+    notes: [
+      ...(plan.notes ?? []).filter((note) => (
+        !note.startsWith(PROPOSAL_NOTE_PREFIX)
+        && !note.startsWith(PROPOSAL_KIND_PREFIX)
+      )),
+      marker,
+      ...(kind ? [kind === 'deload_session' ? COACH_DELOAD_PLAN_MARKER : `${PROPOSAL_KIND_PREFIX}${kind}`] : []),
+    ],
   };
 }
 
 export function coachProposalIdFromPlan(plan: SessionPlan | null | undefined) {
   const marker = plan?.notes?.find((note) => note.startsWith(PROPOSAL_NOTE_PREFIX));
   return marker ? marker.slice(PROPOSAL_NOTE_PREFIX.length) : null;
+}
+
+export function coachProposalKindFromPlan(plan: SessionPlan | null | undefined): CoachProposalKind | null {
+  const marker = plan?.notes?.find((note) => note.startsWith(PROPOSAL_KIND_PREFIX));
+  const kind = marker?.slice(PROPOSAL_KIND_PREFIX.length);
+  return kind === 'keep_plan' || kind === 'reduce_volume' || kind === 'deload_session' ? kind : null;
 }
 
 function initialSetUiForPlan(plan: SessionPlan): WorkoutDraftSetUi {
@@ -264,43 +362,62 @@ async function startCoachProposalWorkoutOnce(
   if (!next) return { status: 'unavailable' };
   const readiness = await getReadinessSignal(db, userId, dateKey(now));
   if (readiness.readiness === 'red') return { status: 'stale', reason: 'readiness' };
+  const adaptation = await buildCoachAdaptationSignal(db, userId, {
+    programId: program.id,
+    week: next.week,
+    now,
+  });
 
   const preview = await previewProgramDay(db, userId, next, readiness.readiness);
-  const previewSet = buildCoachProposalSet(preview);
+  const previewSet = buildCoachProposalSet(preview, adaptation.deload);
   const previewOption = resolveCoachProposal(previewSet, proposalIdValue);
   if (!previewOption) return { status: 'stale', reason: 'plan' };
-  applyCoachProposal(preview, previewOption);
+  applyCoachProposal(preview, previewOption, adaptation.deload);
 
   const activeBeforeWrite = await getInProgressWorkoutOverview(db, userId);
   if (activeBeforeWrite) return { status: 'active_workout', workoutId: activeBeforeWrite.workoutId };
 
-  const start = await startWorkoutWithStatus(db, userId, next.dayId, idFn, readiness.score);
-  if (!start.created) return { status: 'active_workout', workoutId: start.workoutId };
-  const workoutId = start.workoutId;
-  const overview = await getWorkoutOverview(db, workoutId, userId);
-  if (!overview || overview.programDayId !== next.dayId) {
-    return { status: 'active_workout', workoutId };
-  }
-
-  const planned = await planSession(db, userId, next, idFn, readiness.readiness);
-  const plannedSet = buildCoachProposalSet(planned);
-  const plannedOption = resolveCoachProposal(plannedSet, proposalIdValue);
-  if (!plannedOption) {
-    await discardWorkout(db, workoutId, idFn);
-    return { status: 'stale', reason: 'plan' };
-  }
-  const proposedPlan = markPlanWithCoachProposal(applyCoachProposal(planned, plannedOption), proposalIdValue);
-  await saveWorkoutDraft(db, {
-    workoutId,
+  const start = await startProgramWorkoutDraftAtomic(db, {
     userId,
-    programDayId: next.dayId,
-    day: next,
-    plan: proposedPlan,
-    setUi: initialSetUiForPlan(proposedPlan),
-    activeIndex: 0,
-    restRemainingS: null,
+    expectedProgramId: program.id,
+    expectedDay: next,
+    idFn,
+    resolveContext: async (transaction, liveDay) => {
+      const liveReadiness = await getReadinessSignal(transaction, userId, dateKey(now));
+      if (liveReadiness.readiness === 'red') return null;
+      const liveAdaptation = await buildCoachAdaptationSignal(transaction, userId, {
+        programId: program.id,
+        week: liveDay.week,
+        now,
+      });
+      return {
+        readiness: liveReadiness.readiness,
+        readinessScore: liveReadiness.score,
+        value: liveAdaptation,
+      };
+    },
+    prepare: (livePlan, liveAdaptation) => {
+      const liveSet = buildCoachProposalSet(livePlan, liveAdaptation.deload);
+      const liveOption = resolveCoachProposal(liveSet, proposalIdValue);
+      if (!liveOption) return null;
+      const proposedPlan = markPlanWithCoachProposal(
+        applyCoachProposal(livePlan, liveOption, liveAdaptation.deload),
+        proposalIdValue,
+        liveOption.kind,
+      );
+      return {
+        plan: proposedPlan,
+        setUi: initialSetUiForPlan(proposedPlan),
+        trainingIntent: liveOption.kind === 'deload_session' ? 'coach_deload' : 'normal',
+        value: liveOption,
+      };
+    },
   });
-  return { status: 'started', workoutId, proposal: plannedOption };
+  if (start.status === 'active_workout') return start;
+  if (start.status === 'stale') {
+    return { status: 'stale', reason: start.phase === 'context' ? 'readiness' : 'plan' };
+  }
+  return { status: 'started', workoutId: start.workoutId, proposal: start.value };
 }
 
 export function startCoachProposalWorkout(
@@ -339,6 +456,9 @@ export function preferredOfflineProposalId(
     || (/\b(?:workout|session)\b/.test(lower) && /\breadiness\b/.test(lower))
   );
   const wantsLess = /\b(tired|fatigue|fatigued|run down|exhausted|recovery|reduce|trim|less volume)\b/.test(lower);
+  const wantsDeload = /\b(deload|descarga)\b/.test(lower);
+  const deload = options.find((option) => option.kind === 'deload_session');
+  if (deload && (wantsDeload || wantsLess || asksForWorkout)) return deload.id;
   if (wantsLess || (asksForWorkout && readiness === 'yellow')) {
     return options.find((option) => option.kind === 'reduce_volume' && option.setReduction === 1)?.id ?? null;
   }

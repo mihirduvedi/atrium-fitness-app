@@ -1,4 +1,5 @@
 import {
+  applySessionDeload,
   applyReadiness,
   exerciseCatalog,
   instantiateProgram,
@@ -14,7 +15,14 @@ import {
   type SetLog,
   type SlotState,
 } from '@atrium/engine';
-import { softDeleteWithMutation, upsertWithMutation, type IdFn, type Row } from './dao';
+import {
+  softDeleteWithMutation,
+  softDeleteWithMutationInTransaction,
+  upsertWithMutation,
+  upsertWithMutationInTransaction,
+  type IdFn,
+  type Row,
+} from './dao';
 import type { SqlDb } from './schema';
 
 /**
@@ -394,7 +402,16 @@ export async function getHistory(db: SqlDb, userId: string): Promise<SetLog[]> {
   }>(
     `select s.exercise_id, w.started_at, s.set_index, s.weight, s.reps, s.is_warmup
      from sets s join workouts w on w.id = s.workout_id
-     where w.user_id = ? and s.deleted_at is null and w.deleted_at is null
+     where w.user_id = ?
+       and s.deleted_at is null
+       and w.deleted_at is null
+       and not exists (
+         select 1
+           from workout_training_intents intent
+          where intent.id = w.id
+            and intent.intent = 'coach_deload'
+            and intent.deleted_at is null
+       )
      order by w.started_at, s.set_index`,
     userId,
   );
@@ -406,6 +423,193 @@ export async function getHistory(db: SqlDb, userId: string): Promise<SetLog[]> {
     reps: r.reps ?? 0,
     isWarmup: !!r.is_warmup,
   }));
+}
+
+export type WorkoutTrainingIntent = 'coach_deload';
+
+function stableJson(value: unknown): string {
+  const normalize = (item: unknown): unknown => {
+    if (Array.isArray(item)) return item.map(normalize);
+    if (!item || typeof item !== 'object') return item;
+    return Object.fromEntries(
+      Object.entries(item as Record<string, unknown>)
+        .filter(([, child]) => child !== undefined)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, child]) => [key, normalize(child)]),
+    );
+  };
+  return JSON.stringify(normalize(value));
+}
+
+function withoutCoachProposalId(plan: SessionPlan): SessionPlan {
+  return {
+    ...plan,
+    notes: plan.notes?.filter((note) => !note.startsWith('atrium:coach-proposal:')),
+  };
+}
+
+function isSessionPlanShape(candidate: unknown, programDayId: string): candidate is SessionPlan {
+  if (!candidate || typeof candidate !== 'object') return false;
+  const plan = candidate as Record<string, unknown>;
+  if (
+    plan.programDayId !== programDayId
+    || typeof plan.name !== 'string'
+    || !Number.isInteger(plan.weekIndex)
+    || !Array.isArray(plan.prescriptions)
+    || plan.prescriptions.length === 0
+    || plan.prescriptions.length > 50
+  ) return false;
+
+  return plan.prescriptions.every((rawPrescription) => {
+    if (!rawPrescription || typeof rawPrescription !== 'object') return false;
+    const prescription = rawPrescription as Record<string, unknown>;
+    if (
+      typeof prescription.slotId !== 'string'
+      || typeof prescription.exerciseId !== 'string'
+      || typeof prescription.rule !== 'string'
+      || typeof prescription.rest_s !== 'number'
+      || !Number.isFinite(prescription.rest_s)
+      || prescription.rest_s < 0
+      || prescription.rest_s > 900
+      || !prescription.nextState
+      || typeof prescription.nextState !== 'object'
+      || !Array.isArray(prescription.sets)
+      || prescription.sets.length > 100
+    ) return false;
+    const nextState = prescription.nextState as Record<string, unknown>;
+    if (
+      nextState.slotId !== prescription.slotId
+      || nextState.exerciseId !== prescription.exerciseId
+      || nextState.rule !== prescription.rule
+    ) return false;
+    return prescription.sets.every((rawSet) => {
+      if (!rawSet || typeof rawSet !== 'object') return false;
+      const set = rawSet as Record<string, unknown>;
+      return Number.isInteger(set.setIndex)
+        && (set.kind === 'warmup' || set.kind === 'top' || set.kind === 'backoff' || set.kind === 'work')
+        && (set.isWarmup === undefined || typeof set.isWarmup === 'boolean')
+        && Array.isArray(set.targetReps)
+        && set.targetReps.length === 2
+        && set.targetReps.every((rep) => (
+          typeof rep === 'number' && Number.isFinite(rep) && rep >= 1 && rep <= 1000
+        ))
+        && (set.weight === undefined || set.weight === null || (
+          typeof set.weight === 'number' && Number.isFinite(set.weight) && set.weight >= 0 && set.weight <= 10_000
+        ))
+        && (set.targetSeconds === undefined || (
+          typeof set.targetSeconds === 'number'
+          && Number.isFinite(set.targetSeconds)
+          && set.targetSeconds >= 1
+          && set.targetSeconds <= 86_400
+        ));
+    });
+  });
+}
+
+async function parseSyncedDeloadPlan(
+  db: SqlDb,
+  value: string | null,
+  userId: string,
+  day: NextDay,
+  trustedReadiness: Readiness,
+): Promise<SessionPlan | null> {
+  if (!value || value.length > 100_000) return null;
+  try {
+    const programDayId = day.dayId;
+    const candidate = JSON.parse(value) as Record<string, unknown>;
+    if (
+      candidate?.version !== 1
+      || !isSessionPlanShape(candidate.basePlan, programDayId)
+      || !isSessionPlanShape(candidate.resumePlan, programDayId)
+    ) return null;
+    const basePlan = candidate.basePlan;
+    const resumePlan = candidate.resumePlan;
+    if (basePlan.readinessApplied !== trustedReadiness) return null;
+    const strippedResumePlan: SessionPlan = {
+      ...resumePlan,
+      notes: resumePlan.notes?.filter((note) => (
+        !note.startsWith('atrium:coach-proposal:')
+        && !note.startsWith('atrium:coach-proposal-kind:')
+      )),
+    };
+    if (stableJson(applySessionDeload(basePlan)) !== stableJson(strippedResumePlan)) return null;
+
+    // Slot progression is intentionally idempotent until new completed
+    // history appears. Rebuild the normal plan from current trusted rows and
+    // require the synced base snapshot to match it exactly before accepting
+    // any exercise, set, rep, or load from another device.
+    const rebuiltBasePlan = (await buildProgramDayPlan(
+      db,
+      userId,
+      day,
+      trustedReadiness,
+    )).plan;
+    if (stableJson(rebuiltBasePlan) !== stableJson(basePlan)) return null;
+
+    const slots = await db.getAllAsync<{
+      id: string;
+      exercise_id: string;
+      rule: string;
+      rest_s: number;
+      state: string;
+    }>(
+      `select id, exercise_id, rule, rest_s, state
+         from program_slots
+        where program_day_id = ? and deleted_at is null
+        order by slot_index`,
+      programDayId,
+    );
+    if (slots.length !== basePlan.prescriptions.length) return null;
+    const slotsById = new Map(slots.map((slot) => [slot.id, slot]));
+    for (const prescription of basePlan.prescriptions) {
+      const slot = slotsById.get(prescription.slotId);
+      if (
+        !slot
+        || slot.exercise_id !== prescription.exerciseId
+        || slot.rule !== prescription.rule
+        || slot.rest_s !== prescription.rest_s
+      ) return null;
+      const currentState = JSON.parse(slot.state) as unknown;
+      if (stableJson(currentState) !== stableJson(prescription.nextState)) return null;
+    }
+    return resumePlan;
+  } catch {
+    return null;
+  }
+}
+
+export async function getWorkoutTrainingIntent(
+  db: SqlDb,
+  workoutId: string,
+): Promise<WorkoutTrainingIntent | null> {
+  const row = await db.getFirstAsync<{ intent: string }>(
+    `select intent
+       from workout_training_intents
+      where id = ?
+        and deleted_at is null`,
+    workoutId,
+  );
+  return row?.intent === 'coach_deload' ? 'coach_deload' : null;
+}
+
+async function buildProgramDayPlan(
+  db: SqlDb,
+  userId: string,
+  day: NextDay,
+  readiness: Readiness,
+): Promise<{ plan: SessionPlan; states: SlotState[] }> {
+  const states = await getSlotStates(db, day.dayId);
+  const history = await getHistory(db, userId);
+  const prescriptions = states.map((state) => nextPrescription(state, history));
+  return {
+    states,
+    plan: renderWarmups(applyReadiness({
+      programDayId: day.dayId,
+      name: day.name,
+      weekIndex: day.week,
+      prescriptions,
+    }, readiness)),
+  };
 }
 
 /**
@@ -421,24 +625,50 @@ export async function planSession(
   idFn: IdFn,
   readiness: Readiness = 'green',
 ): Promise<SessionPlan> {
-  const states = await getSlotStates(db, day.dayId);
-  const history = await getHistory(db, userId);
+  const activeIntent = await db.getFirstAsync<{
+    intent: string;
+    plan_json: string | null;
+    readiness_at_start: number | null;
+  }>(
+    `select intent.intent, intent.plan_json, w.readiness_at_start
+       from workouts w
+       join workout_training_intents intent
+         on intent.id = w.id and intent.deleted_at is null
+      where w.user_id = ?
+        and w.program_day_id = ?
+        and w.ended_at is null
+        and w.deleted_at is null
+      order by w.started_at desc
+      limit 1`,
+    userId,
+    day.dayId,
+  );
+  if (activeIntent?.intent === 'coach_deload') {
+    const score = activeIntent.readiness_at_start;
+    const trustedReadiness: Readiness | null = typeof score !== 'number' || !Number.isFinite(score)
+      || score < 0 || score > 100
+      ? null
+      : score < 58
+      ? 'red'
+      : score < 72
+      ? 'yellow'
+      : 'green';
+    const syncedPlan = trustedReadiness && trustedReadiness !== 'red'
+      ? await parseSyncedDeloadPlan(db, activeIntent.plan_json, userId, day, trustedReadiness)
+      : null;
+    if (syncedPlan) return syncedPlan;
+    throw new Error('This Coach deload cannot be safely resumed on this device. Sync again before logging sets.');
+  }
 
-  const prescriptions = [];
-  for (const state of states) {
-    const p = nextPrescription(state, history);
+  const { plan, states } = await buildProgramDayPlan(db, userId, day, readiness);
+  for (let index = 0; index < states.length; index += 1) {
+    const state = states[index]!;
+    const p = plan.prescriptions[index]!;
     if (JSON.stringify(p.nextState) !== JSON.stringify(state)) {
       await saveSlotState(db, p.nextState, idFn);
     }
-    prescriptions.push(p);
   }
-  const plan: SessionPlan = {
-    programDayId: day.dayId,
-    name: day.name,
-    weekIndex: day.week,
-    prescriptions,
-  };
-  return renderWarmups(applyReadiness(plan, readiness));
+  return plan;
 }
 
 /** Build a session preview without persisting nextState changes. */
@@ -448,15 +678,7 @@ export async function previewProgramDay(
   day: NextDay,
   readiness: Readiness = 'green',
 ): Promise<SessionPlan> {
-  const states = await getSlotStates(db, day.dayId);
-  const history = await getHistory(db, userId);
-  const prescriptions = states.map((state) => nextPrescription(state, history));
-  return renderWarmups(applyReadiness({
-    programDayId: day.dayId,
-    name: day.name,
-    weekIndex: day.week,
-    prescriptions,
-  }, readiness));
+  return (await buildProgramDayPlan(db, userId, day, readiness)).plan;
 }
 
 export interface ProgramSlotOverview {
@@ -1543,28 +1765,67 @@ export async function discardEmptyInProgressWorkouts(
   idFn: IdFn,
   keepWorkoutId?: string | null,
 ): Promise<number> {
-  const rows = await db.getAllAsync<{ id: string }>(
-    `select w.id
-       from workouts w
-      where w.user_id = ?
-        and w.ended_at is null
-        and w.deleted_at is null
-        and (? is null or w.id != ?)
-        and not exists (
-          select 1 from sets s
-           where s.workout_id = w.id and s.deleted_at is null
-        )`,
-    userId,
-    keepWorkoutId ?? null,
-    keepWorkoutId ?? null,
-  );
-
-  const ts = nowIso();
-  for (const row of rows) {
-    await softDeleteWithMutation(db, 'workouts', row.id, idFn);
-    await db.runAsync('update workout_drafts set deleted_at = ?, updated_at = ? where workout_id = ?', ts, ts, row.id);
+  let discarded = 0;
+  const commit = async (transaction: SqlDb) => {
+    const rows = await transaction.getAllAsync<{ id: string }>(
+      `select w.id
+         from workouts w
+        where w.user_id = ?
+          and w.ended_at is null
+          and w.deleted_at is null
+          and (? is null or w.id != ?)
+          and not exists (
+            select 1 from sets s
+             where s.workout_id = w.id and s.deleted_at is null
+          )
+          and not exists (
+            select 1 from workout_training_intents intent
+             where intent.id = w.id
+               and intent.intent = 'coach_deload'
+               and intent.deleted_at is null
+          )`,
+      userId,
+      keepWorkoutId ?? null,
+      keepWorkoutId ?? null,
+    );
+    const ts = nowIso();
+    for (const row of rows) {
+      await softDeleteWithMutationInTransaction(transaction, 'workouts', row.id, idFn, ts);
+      const intent = await transaction.getFirstAsync<{ id: string }>(
+        'select id from workout_training_intents where id = ? and deleted_at is null',
+        row.id,
+      );
+      if (intent) {
+        await softDeleteWithMutationInTransaction(
+          transaction,
+          'workout_training_intents',
+          row.id,
+          idFn,
+          ts,
+        );
+      }
+      await transaction.runAsync(
+        'update workout_drafts set deleted_at = ?, updated_at = ? where workout_id = ?',
+        ts,
+        ts,
+        row.id,
+      );
+    }
+    discarded = rows.length;
+  };
+  if (db.withExclusiveTransactionAsync) {
+    try {
+      await db.withExclusiveTransactionAsync(commit);
+    } catch (error) {
+      const unsupportedOnWeb = error instanceof Error
+        && error.message === 'withExclusiveTransactionAsync is not supported on web';
+      if (!unsupportedOnWeb) throw error;
+      await db.withTransactionAsync(() => commit(db));
+    }
+  } else {
+    await db.withTransactionAsync(() => commit(db));
   }
-  return rows.length;
+  return discarded;
 }
 
 export function startWorkoutWithStatus(
@@ -1659,6 +1920,153 @@ export async function saveWorkoutDraft(
     restRemainingS === null ? null : args.restSavedAt ?? ts,
     ts,
   );
+}
+
+export interface PreparedProgramWorkoutDraft<T> {
+  plan: SessionPlan;
+  setUi: WorkoutDraftSetUi;
+  trainingIntent?: 'normal' | 'coach_deload';
+  value: T;
+}
+
+export interface ProgramWorkoutLiveContext<T> {
+  readiness: Readiness;
+  readinessScore: number;
+  value: T;
+}
+
+export type StartProgramWorkoutDraftResult<T> =
+  | { status: 'started'; workoutId: string; value: T }
+  | { status: 'active_workout'; workoutId: string }
+  | { status: 'stale'; phase: 'context' | 'plan' };
+
+/**
+ * Rebuild and commit a program workout as one durable unit.
+ *
+ * The callback receives a live plan rebuilt inside the transaction. Returning
+ * null fails closed before any write. Once it returns a prepared draft, the
+ * workout row, every advanced slot state, their sync-queue entries, and the
+ * local draft either all commit or all roll back together.
+ */
+export function startProgramWorkoutDraftAtomic<T, TContext>(
+  db: SqlDb,
+  args: {
+    userId: string;
+    expectedProgramId: string;
+    expectedDay: NextDay;
+    idFn: IdFn;
+    resolveContext: (
+      transaction: SqlDb,
+      liveDay: NextDay,
+    ) => Promise<ProgramWorkoutLiveContext<TContext> | null>;
+    prepare: (livePlan: SessionPlan, context: TContext) => PreparedProgramWorkoutDraft<T> | null;
+  },
+): Promise<StartProgramWorkoutDraftResult<T>> {
+  return serializeWorkoutStart(db, args.userId, async () => {
+    let result: StartProgramWorkoutDraftResult<T> = { status: 'stale', phase: 'plan' };
+    const commit = async (transaction: SqlDb) => {
+      const existing = await getInProgressWorkoutOverview(transaction, args.userId);
+      if (existing) {
+        result = { status: 'active_workout', workoutId: existing.workoutId };
+        return;
+      }
+
+      const program = await getActiveProgram(transaction, args.userId);
+      const next = program ? await getNextProgramDay(transaction, program.id) : null;
+      if (
+        program?.id !== args.expectedProgramId
+        || !next
+        || next.dayId !== args.expectedDay.dayId
+        || next.week !== args.expectedDay.week
+      ) {
+        return;
+      }
+
+      const context = await args.resolveContext(transaction, next);
+      if (!context) {
+        result = { status: 'stale', phase: 'context' };
+        return;
+      }
+      const { plan: livePlan, states } = await buildProgramDayPlan(
+        transaction,
+        args.userId,
+        next,
+        context.readiness,
+      );
+      const prepared = args.prepare(livePlan, context.value);
+      if (!prepared) return;
+
+      const workoutId = args.idFn();
+      const ts = nowIso();
+      await upsertWithMutationInTransaction(transaction, 'workouts', {
+        id: workoutId,
+        user_id: args.userId,
+        program_day_id: next.dayId,
+        started_at: ts,
+        ended_at: null,
+        notes: null,
+        readiness_at_start: context.readinessScore,
+        updated_at: ts,
+        deleted_at: null,
+      }, args.idFn);
+      if (prepared.trainingIntent === 'coach_deload') {
+        await upsertWithMutationInTransaction(transaction, 'workout_training_intents', {
+          id: workoutId,
+          intent: 'coach_deload',
+          plan_json: JSON.stringify({
+            version: 1,
+            basePlan: livePlan,
+            resumePlan: withoutCoachProposalId(prepared.plan),
+          }),
+          updated_at: ts,
+          deleted_at: null,
+        }, args.idFn);
+      }
+
+      const stateBySlot = new Map(states.map((state) => [state.slotId, state]));
+      for (const prescription of livePlan.prescriptions) {
+        const previousState = stateBySlot.get(prescription.slotId);
+        if (!previousState || JSON.stringify(prescription.nextState) === JSON.stringify(previousState)) continue;
+        const row = await transaction.getFirstAsync<Row>(
+          'select * from program_slots where id = ?',
+          prescription.slotId,
+        );
+        if (!row) throw new Error('Program slot disappeared while starting workout.');
+        await upsertWithMutationInTransaction(transaction, 'program_slots', {
+          ...row,
+          exercise_id: prescription.nextState.exerciseId,
+          state: JSON.stringify(prescription.nextState),
+          updated_at: ts,
+        }, args.idFn);
+      }
+
+      await saveWorkoutDraft(transaction, {
+        workoutId,
+        userId: args.userId,
+        programDayId: next.dayId,
+        day: next,
+        plan: prepared.plan,
+        setUi: prepared.setUi,
+        activeIndex: 0,
+        restRemainingS: null,
+      });
+      result = { status: 'started', workoutId, value: prepared.value };
+    };
+
+    if (db.withExclusiveTransactionAsync) {
+      try {
+        await db.withExclusiveTransactionAsync(commit);
+      } catch (error) {
+        const unsupportedOnWeb = error instanceof Error
+          && error.message === 'withExclusiveTransactionAsync is not supported on web';
+        if (!unsupportedOnWeb) throw error;
+        await db.withTransactionAsync(() => commit(db));
+      }
+    } else {
+      await db.withTransactionAsync(() => commit(db));
+    }
+    return result;
+  });
 }
 
 export async function getWorkoutDraft(db: SqlDb, workoutId: string): Promise<WorkoutDraftData | null> {
@@ -1771,23 +2179,57 @@ export async function finishWorkout(db: SqlDb, workoutId: string, idFn: IdFn): P
 }
 
 export async function discardWorkout(db: SqlDb, workoutId: string, idFn: IdFn): Promise<boolean> {
-  const workout = await db.getFirstAsync<{ id: string; ended_at: string | null }>(
-    'select id, ended_at from workouts where id = ? and deleted_at is null',
-    workoutId,
-  );
-  if (!workout || workout.ended_at) return false;
+  let discarded = false;
+  const commit = async (transaction: SqlDb) => {
+    const workout = await transaction.getFirstAsync<{ id: string; ended_at: string | null }>(
+      'select id, ended_at from workouts where id = ? and deleted_at is null',
+      workoutId,
+    );
+    if (!workout || workout.ended_at) return;
 
-  const setRows = await db.getAllAsync<{ id: string }>(
-    'select id from sets where workout_id = ? and deleted_at is null',
-    workoutId,
-  );
-  for (const row of setRows) {
-    await softDeleteWithMutation(db, 'sets', row.id, idFn);
+    const ts = nowIso();
+    const setRows = await transaction.getAllAsync<{ id: string }>(
+      'select id from sets where workout_id = ? and deleted_at is null',
+      workoutId,
+    );
+    for (const row of setRows) {
+      await softDeleteWithMutationInTransaction(transaction, 'sets', row.id, idFn, ts);
+    }
+    await softDeleteWithMutationInTransaction(transaction, 'workouts', workoutId, idFn, ts);
+    const intent = await transaction.getFirstAsync<{ id: string }>(
+      'select id from workout_training_intents where id = ? and deleted_at is null',
+      workoutId,
+    );
+    if (intent) {
+      await softDeleteWithMutationInTransaction(
+        transaction,
+        'workout_training_intents',
+        workoutId,
+        idFn,
+        ts,
+      );
+    }
+    await transaction.runAsync(
+      'update workout_drafts set deleted_at = ?, updated_at = ? where workout_id = ?',
+      ts,
+      ts,
+      workoutId,
+    );
+    discarded = true;
+  };
+  if (db.withExclusiveTransactionAsync) {
+    try {
+      await db.withExclusiveTransactionAsync(commit);
+    } catch (error) {
+      const unsupportedOnWeb = error instanceof Error
+        && error.message === 'withExclusiveTransactionAsync is not supported on web';
+      if (!unsupportedOnWeb) throw error;
+      await db.withTransactionAsync(() => commit(db));
+    }
+  } else {
+    await db.withTransactionAsync(() => commit(db));
   }
-  await softDeleteWithMutation(db, 'workouts', workoutId, idFn);
-  const ts = nowIso();
-  await db.runAsync('update workout_drafts set deleted_at = ?, updated_at = ? where workout_id = ?', ts, ts, workoutId);
-  return true;
+  return discarded;
 }
 
 /** Ghost values: the previous session's actuals per exercise, by set index. */

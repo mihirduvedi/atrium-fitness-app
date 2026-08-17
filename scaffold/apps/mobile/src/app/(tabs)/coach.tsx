@@ -162,6 +162,12 @@ function CoachProposalCard({
   const isApplied = applied || state?.status === 'applied';
   const resumeWorkoutId = state?.workoutId ?? activeWorkoutId;
   const reduced = option.kind === 'reduce_volume';
+  const deload = option.kind === 'deload_session';
+  const deloadRows = deload ? [
+    { label: 'Working sets', value: `Target ~−${option.volumeReductionPct ?? 40}%` },
+    { label: 'Working loads', value: `~−${option.intensityReductionPct ?? 10}% · rounded` },
+    { label: 'Top sets', value: option.dropTopSets ? 'Removed' : 'Unchanged' },
+  ] : [];
   const statusLabel = isApplied ? 'Applied' : stale ? 'Plan changed' : blocked ? 'Workout active' : 'Ready to review';
   const statusColor = isApplied ? t.colors.dataBlue : stale || error ? t.colors.dataCoral : t.colors.textMuted;
   const actionTitle = isApplied
@@ -188,7 +194,9 @@ function CoachProposalCard({
     >
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: space[3] }}>
         <View style={{ flex: 1 }}>
-          <Text accessibilityRole="header" style={t.text('labelCaps', 'textMuted')}>Proposed for next workout</Text>
+          <Text accessibilityRole="header" style={t.text('labelCaps', 'textMuted')}>
+            {deload ? 'Engine adaptation for next workout' : 'Proposed for next workout'}
+          </Text>
           <Text style={[t.text('bodyM'), { marginTop: 4 }]}>{option.title}</Text>
         </View>
         <View
@@ -204,34 +212,61 @@ function CoachProposalCard({
         </View>
       </View>
 
-      <View
-        accessible
-        accessibilityLabel={reduced
-          ? `${option.exerciseName ?? 'Primary lift'} back-off sets reduced from ${option.beforeBackoffSets} to ${option.afterBackoffSets}`
-          : 'Working plan, no changes'}
-        style={{
-          minHeight: 48,
-          borderTopWidth: borderWidth.hairline,
-          borderBottomWidth: borderWidth.hairline,
-          borderColor: t.colors.borderHairline,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: space[3],
-          paddingVertical: space[2],
-        }}
-      >
-        <View style={{ flex: 1 }}>
-          <Text style={t.text('bodyM')}>{reduced ? option.exerciseName : 'Working plan'}</Text>
-          <Text style={t.text('bodyS', 'textMuted')}>{reduced ? 'Back-off sets' : 'Programmed session'}</Text>
+      {deload ? (
+        <View
+          accessible
+          accessibilityLabel={`One-session deload. ${option.triggerLabel ?? 'Engine deload signal.'} Working-set target about ${option.volumeReductionPct ?? 40} percent lower. Loads about ${option.intensityReductionPct ?? 10} percent lower after plate rounding. Top sets removed. Program unchanged.`}
+          style={{
+            borderTopWidth: borderWidth.hairline,
+            borderBottomWidth: borderWidth.hairline,
+            borderColor: t.colors.borderHairline,
+            paddingVertical: space[2],
+            gap: space[2],
+          }}
+        >
+          <Text style={t.text('bodyS', 'textMuted')}>{option.triggerLabel}</Text>
+          {deloadRows.map((row) => (
+            <View
+              key={row.label}
+              style={{ flexDirection: 'row', justifyContent: 'space-between', gap: space[3] }}
+            >
+              <Text style={t.text('bodyM')}>{row.label}</Text>
+              <Text style={[t.text('bodyM'), { color: t.colors.dataCoral }]}>{row.value}</Text>
+            </View>
+          ))}
         </View>
-        <Text style={[t.text('bodyM'), reduced ? { color: t.colors.dataCoral } : { color: t.colors.textMuted }]}>
-          {reduced ? `${option.beforeBackoffSets}  →  ${option.afterBackoffSets}` : 'No changes'}
-        </Text>
-      </View>
+      ) : (
+        <View
+          accessible
+          accessibilityLabel={reduced
+            ? `${option.exerciseName ?? 'Primary lift'} back-off sets reduced from ${option.beforeBackoffSets} to ${option.afterBackoffSets}`
+            : 'Working plan, no changes'}
+          style={{
+            minHeight: 48,
+            borderTopWidth: borderWidth.hairline,
+            borderBottomWidth: borderWidth.hairline,
+            borderColor: t.colors.borderHairline,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: space[3],
+            paddingVertical: space[2],
+          }}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={t.text('bodyM')}>{reduced ? option.exerciseName : 'Working plan'}</Text>
+            <Text style={t.text('bodyS', 'textMuted')}>{reduced ? 'Back-off sets' : 'Programmed session'}</Text>
+          </View>
+          <Text style={[t.text('bodyM'), reduced ? { color: t.colors.dataCoral } : { color: t.colors.textMuted }]}>
+            {reduced ? `${option.beforeBackoffSets}  →  ${option.afterBackoffSets}` : 'No changes'}
+          </Text>
+        </View>
+      )}
 
       <Text style={t.text('bodyS', 'textMuted')}>
-        {reduced
+        {deload
+          ? 'One workout only. Exercise order, rep ranges, rest, and your Program stay unchanged.'
+          : reduced
           ? 'Warm-ups, top set, load, reps, and the rest of the session stay unchanged.'
           : 'Atrium will rebuild this workout from the latest plan before it starts.'}
       </Text>

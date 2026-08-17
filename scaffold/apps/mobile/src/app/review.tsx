@@ -3,6 +3,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useApp } from '@/AppContext';
 import { buildCoachContextPack, formatCompactNumber, formatDelta, type CoachContextPack } from '@/coach/context';
+import { coachDeviceDateKey } from '@/coach/adaptation';
 import { Button, Card, Eyebrow, ScreenScroll } from '@/components/ui';
 import { PremiumFeatureScreen } from '@/subscriptions/PremiumFeatureScreen';
 import { canAccessSubscriptionFeature } from '@/subscriptions/subscription';
@@ -10,6 +11,7 @@ import { borderWidth, radius, space, useTheme } from '@/theme';
 import { displayWorkoutName } from '@/workoutNames';
 
 function headlineFor(pack: CoachContextPack) {
+  if (pack.adaptation?.deload.deload) return 'A lower-stress session is ready.';
   if (pack.week.workouts === 0) return 'Your review is waiting on logged sessions.';
   const volume = pack.week.previousWorkouts > 0
     ? `volume ${formatDelta(pack.week.volumeDeltaPct)}`
@@ -33,6 +35,12 @@ function consistencyText(pack: CoachContextPack) {
 }
 
 function watchOut(pack: CoachContextPack) {
+  if (pack.adaptation?.deload.deload) {
+    return {
+      title: 'Watch-out: training strain crossed a deload rule.',
+      body: pack.adaptation.reasonLabel ?? 'The engine found a bounded one-session deload signal.',
+    };
+  }
   if (pack.week.workouts === 0) {
     return {
       title: 'Watch-out: no logged signal yet.',
@@ -59,11 +67,23 @@ function watchOut(pack: CoachContextPack) {
 
 function planRows(pack: CoachContextPack) {
   const next = pack.program?.nextDayName ?? 'Next lift';
-  const volume = pack.readiness.readiness === 'green' ? 'Keep planned sets' : 'Trim only if warmups drag';
+  const prescription = pack.adaptation?.deload.deload
+    ? pack.adaptation.deload.prescription
+    : null;
+  const volume = prescription
+    ? `Target ~${Math.abs(prescription.volumePct)}% fewer working sets`
+    : pack.readiness.readiness === 'green'
+      ? 'Keep planned sets'
+      : 'Trim only if warmups drag';
   return [
     { label: next, detail: pack.program?.nextWeek ? `Program week ${pack.program.nextWeek}` : 'Active target' },
     { label: 'Back-off volume', detail: volume },
-    { label: 'Load changes', detail: 'Earned by logged reps' },
+    {
+      label: 'Load changes',
+      detail: prescription
+        ? `~${Math.abs(prescription.intensityPct)}% lower · plate-rounded`
+        : 'Earned by logged reps',
+    },
   ];
 }
 
@@ -118,7 +138,6 @@ function WeeklyReviewContent() {
   const t = useTheme();
   const { db, userId } = useApp();
   const [pack, setPack] = useState<CoachContextPack | null>(null);
-  const [applied, setApplied] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -143,8 +162,20 @@ function WeeklyReviewContent() {
     );
   }
 
-  const latestPr = pack.prSignals[0];
+  const latestPr = pack.prSignals.find((signal) => {
+    const achieved = coachDeviceDateKey(signal.achievedAt);
+    return achieved >= pack.week.startDate && achieved <= pack.week.endDate;
+  });
   const lastWorkout = pack.recentWorkouts[0];
+  const deload = pack.adaptation?.deload.deload ? pack.adaptation : null;
+  const deloadPrescription = deload?.deload.prescription ?? null;
+  const deloadActionCopy = pack.actionState.activeProposalKind === 'deload_session'
+    ? 'This Coach deload is already active. Continue in Coach to resume the workout.'
+    : pack.actionState.hasActiveWorkout
+      ? 'Finish or discard the active workout first. Coach will recheck this signal before offering another draft.'
+      : pack.readiness.readiness === 'red'
+        ? 'Recovery is currently red, so Coach will not offer a workout action. Recheck after recovery improves.'
+        : 'Ask Coach about today’s workout to review this draft. Apply still rechecks the live plan, readiness, and signal.';
 
   return (
     <ScreenScroll>
@@ -188,6 +219,49 @@ function WeeklyReviewContent() {
         <Highlight mark="!" title={watch.title} body={watch.body} />
       </Card>
 
+      {deload && (
+        <Card>
+          <Eyebrow>Engine adaptation · one workout</Eyebrow>
+          <Text accessibilityRole="header" style={t.text('displayS')}>Deload without rewriting your Program.</Text>
+          <Text style={t.text('bodyM', 'textMuted')}>{deload.reasonLabel}</Text>
+          <View
+            accessible
+            accessibilityLabel={`One-session deload. Working-set target about ${Math.abs(deloadPrescription?.volumePct ?? 40)} percent lower. Loads about ${Math.abs(deloadPrescription?.intensityPct ?? 10)} percent lower after plate rounding. Top sets removed. Program unchanged.`}
+            style={{
+              marginTop: space[2],
+              borderTopWidth: borderWidth.hairline,
+              borderBottomWidth: borderWidth.hairline,
+              borderColor: t.colors.borderHairline,
+            }}
+          >
+            {[
+              ['Working sets', `Target ~−${Math.abs(deloadPrescription?.volumePct ?? 40)}%`],
+              ['Working loads', `~−${Math.abs(deloadPrescription?.intensityPct ?? 10)}% · rounded`],
+              ['Top sets', deloadPrescription?.dropTopSets ? 'Removed' : 'Unchanged'],
+            ].map(([label, value], index) => (
+              <View
+                key={label}
+                style={{
+                  minHeight: 44,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: space[3],
+                  borderTopWidth: index === 0 ? 0 : borderWidth.hairline,
+                  borderTopColor: t.colors.borderHairline,
+                }}
+              >
+                <Text style={t.text('bodyM')}>{label}</Text>
+                <Text style={[t.text('bodyM'), { color: t.colors.dataCoral }]}>{value}</Text>
+              </View>
+            ))}
+          </View>
+          <Text style={t.text('bodyS', 'textMuted')}>
+            {deloadActionCopy}
+          </Text>
+        </Card>
+      )}
+
       <Card>
         <Eyebrow>Next week</Eyebrow>
         {rows.map((row, index) => (
@@ -227,9 +301,8 @@ function WeeklyReviewContent() {
       </Card>
 
       <Button
-        title={applied ? 'Reviewed' : 'Mark reviewed'}
-        onPress={() => setApplied(true)}
-        disabled={applied}
+        title="Continue in Coach"
+        onPress={() => router.replace('/(tabs)/coach')}
       />
     </ScreenScroll>
   );

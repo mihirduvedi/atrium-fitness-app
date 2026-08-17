@@ -258,6 +258,15 @@ export function fallbackCoachReply(message: string, pack: CoachContextPack): Coa
   let answer: string;
   let evidenceKeys: CoachEvidenceKey[];
   let followUp: string | null = null;
+  const activeDeload = pack.actionState.hasActiveWorkout
+    && pack.actionState.activeProposalKind === 'deload_session';
+  const activeOtherWorkout = pack.actionState.hasActiveWorkout && !activeDeload;
+  const deloadReason = pack.adaptation?.reasonLabel ?? 'The engine found a deload trigger.';
+  const deloadGuidance = activeDeload
+    ? 'That one-session deload is already active. Resume it to keep the reduced prescription.'
+    : activeOtherWorkout
+    ? 'A different workout is already active, so Atrium cannot offer another Coach action. Finish or discard it first; the signal will be rechecked afterward.'
+    : 'Use the offered one-session deload to reduce stress without rewriting your Program.';
   const asksForTodaysWorkout = (
     /\b(?:what|which)\s+(?:workout|session)\s+should\s+i\s+(?:do|train)\b/.test(lower)
     || /\bwhat\s+should\s+i\s+(?:do|train)\s+today\b/.test(lower)
@@ -274,26 +283,41 @@ export function fallbackCoachReply(message: string, pack: CoachContextPack): Coa
       answer = `Your readiness is ${readinessSummary}, but the active plan does not identify the next workout. I cannot choose one without guessing.`;
     } else if (pack.readiness.readiness === 'red') {
       answer = `Make today a recovery day instead of ${plannedSession}. Your readiness is ${readinessSummary}, so do not force working sets; keep activity light and return to the planned session when readiness improves.`;
+    } else if (activeDeload) {
+      answer = `Resume the active one-session deload. ${deloadReason} Atrium will keep the reduced sets and loads for this workout only; your Program remains unchanged.`;
+    } else if (activeOtherWorkout && pack.adaptation?.deload.deload) {
+      answer = `Resume or finish the workout already in progress. ${deloadReason} Atrium will recheck that signal afterward because a different Coach session cannot be applied while a workout is active.`;
+    } else if (pack.adaptation?.deload.deload) {
+      answer = `Use the one-session deload for ${plannedSession}. ${pack.adaptation.reasonLabel ?? 'The engine found a deload trigger.'} Atrium will lower working sets and loads for this workout only; your Program stays unchanged until you explicitly apply it.`;
     } else if (pack.readiness.readiness === 'yellow') {
       answer = `Do ${plannedSession} today, but keep it conservative. Your readiness is ${readinessSummary}; keep the programmed movements and rep ranges, and reduce load within the range or trim back-off work if warm-ups feel unusually slow.`;
     } else {
       answer = `Do ${plannedSession} today. Your readiness is ${readinessSummary}, which supports the programmed session. Use your normal warm-ups and stay inside the prescribed load and rep ranges.`;
     }
-    evidenceKeys = availableEvidence(pack, ['next_session', 'recovery']);
+    evidenceKeys = availableEvidence(pack, ['next_session', 'training_strain', 'recovery']);
+  } else if (/\b(deload|descarga)\b/.test(lower)) {
+    answer = pack.adaptation?.deload.deload
+      ? `${deloadReason} ${deloadGuidance}`
+      : 'The current completed-session and recovery log does not meet an engine deload rule. Keep the programmed session unless today’s readiness or warm-ups say otherwise.';
+    evidenceKeys = availableEvidence(pack, ['training_strain', 'recovery', 'next_session']);
   } else if (/\b(stuck|plateau|stall)\b/.test(lower)) {
-    answer = pack.prSignals[0]
+    answer = pack.adaptation?.deload.deload
+      ? `${deloadReason} ${deloadGuidance}`
+      : pack.prSignals[0]
       ? `${safeCoachContextLabel(pack.prSignals[0].exerciseName, 'That exercise')} still has a recent ${safeCoachContextLabel(pack.prSignals[0].label, 'performance').toLowerCase()} signal at ${safeCoachContextLabel(pack.prSignals[0].displayValue, 'the logged value')}, so the log does not prove a plateau yet. Keep the next two sessions inside the programmed range before changing the exercise.`
       : 'The log does not have enough repeated completed sessions to call a plateau yet. Keep recording actual reps and load so the trend can separate one rough day from a real stall.';
-    evidenceKeys = availableEvidence(pack, ['latest_pr', 'current_week']);
+    evidenceKeys = availableEvidence(pack, ['training_strain', 'latest_pr', 'current_week']);
   } else if (/\b(travel(?:ing)?|hotel|away)\b/.test(lower)) {
     answer = `Keep ${next} as the training target and substitute only for equipment you cannot access. Preserve the movement pattern and programmed set and rep range rather than inventing a new week.`;
     evidenceKeys = availableEvidence(pack, ['next_session', 'profile']);
   } else if (/\b(tired|fatigue|fatigued|run down|exhausted|recovery)\b/.test(lower)) {
     const volumeRose = !!latest && !!previous && latest.volume > previous.volume;
-    answer = volumeRose
+    answer = pack.adaptation?.deload.deload && pack.readiness.readiness !== 'red'
+      ? `${pack.adaptation.reasonLabel ?? 'The recent log supports a deload.'} ${deloadGuidance}`
+      : volumeRose
       ? 'Your latest logged session carried more volume than the one before it. Keep the main movement, use today’s readiness honestly, and trim a back-off set if warm-ups move unusually slowly.'
       : 'Use today’s readiness honestly and keep the goal to preserving the movement pattern, not forcing a PR. The log does not support an aggressive increase right now.';
-    evidenceKeys = availableEvidence(pack, ['recovery', 'last_workout']);
+    evidenceKeys = availableEvidence(pack, ['training_strain', 'recovery', 'last_workout']);
   } else if (/\b(harder|increase|heavier|add weight|progress)\b/.test(lower)) {
     answer = `I would not override the progression engine for ${next}. If warm-ups move well, earn the increase through reps inside the programmed range; load changes should stay within the engine rules.`;
     evidenceKeys = availableEvidence(pack, ['next_session', 'recovery']);

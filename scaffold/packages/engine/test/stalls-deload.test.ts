@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { detectStalls, shouldDeload } from '../src';
+import {
+  applySessionDeload,
+  detectStalls,
+  shouldDeload,
+  validateChange,
+  type SessionPlan,
+} from '../src';
 import { history, makeSlot } from './helpers';
 
 describe('detectStalls', () => {
@@ -80,5 +86,122 @@ describe('shouldDeload', () => {
 
   it('otherwise: no deload', () => {
     expect(shouldDeload(5, { stalled: [stall('a')], atRisk: [] }, ['red', 'red', 'green'])).toMatchObject({ deload: false, reason: 'none' });
+  });
+});
+
+describe('applySessionDeload', () => {
+  const plan = (): SessionPlan => ({
+    programDayId: 'upper',
+    name: 'Upper Strength',
+    weekIndex: 7,
+    prescriptions: [
+      {
+        slotId: 'bench',
+        exerciseId: 'bb_bench',
+        rule: 'top_set_backoff',
+        rest_s: 180,
+        sets: [
+          { setIndex: -2, weight: 45, targetReps: [5, 5], kind: 'warmup', isWarmup: true },
+          { setIndex: -1, weight: 135, targetReps: [3, 3], kind: 'warmup', isWarmup: true },
+          { setIndex: 0, weight: 200, targetReps: [4, 6], kind: 'top' },
+          { setIndex: 1, weight: 170, targetReps: [6, 8], kind: 'backoff' },
+          { setIndex: 2, weight: 170, targetReps: [6, 8], kind: 'backoff' },
+          { setIndex: 3, weight: 170, targetReps: [6, 8], kind: 'backoff' },
+        ],
+        nextState: makeSlot({
+          slotId: 'bench',
+          exerciseId: 'bb_bench',
+          pattern: 'hpress',
+          rule: 'top_set_backoff',
+          top: { sets: 1, reps: [4, 6] },
+          backoff: { sets: 3, reps: [6, 8], pct_of_top: 0.85 },
+          topWeight: 200,
+          sets: undefined,
+          reps: undefined,
+        }),
+      },
+      {
+        slotId: 'row',
+        exerciseId: 'bb_row',
+        rule: 'double_progression',
+        rest_s: 150,
+        sets: [0, 1, 2].map((setIndex) => ({
+          setIndex,
+          weight: 135,
+          targetReps: [6, 8] as const,
+          kind: 'work' as const,
+        })),
+        nextState: makeSlot({
+          slotId: 'row',
+          exerciseId: 'bb_row',
+          pattern: 'hpull',
+          rule: 'double_progression',
+          sets: 3,
+          reps: [6, 8],
+          workingWeight: 135,
+        }),
+      },
+    ],
+  });
+
+  it('drops top sets, lowers load, and approximates a 40% working-set reduction', () => {
+    const current = plan();
+    const deloaded = applySessionDeload(current);
+    const bench = deloaded.prescriptions[0]!;
+    const row = deloaded.prescriptions[1]!;
+
+    expect(bench.sets.some((set) => set.kind === 'top')).toBe(false);
+    expect(bench.sets.filter((set) => !set.isWarmup)).toHaveLength(2);
+    expect(bench.sets.filter((set) => !set.isWarmup).map((set) => set.weight)).toEqual([152.5, 152.5]);
+    expect(bench.sets.filter((set) => set.isWarmup).map((set) => set.weight)).toEqual([40, 122.5]);
+    expect(row.sets).toHaveLength(2);
+    expect(row.sets.map((set) => set.weight)).toEqual([122.5, 122.5]);
+    expect(bench.sets.map((set) => set.setIndex)).toEqual([-2, -1, 0, 1]);
+    expect(row.sets.map((set) => set.setIndex)).toEqual([0, 1]);
+    expect(deloaded.notes).toContain('Engine session deload: one workout only');
+    expect(validateChange(deloaded, current)).toMatchObject({ ok: true });
+  });
+
+  it('preserves plan identity, rep ranges, rest, progression state, and input immutability', () => {
+    const current = plan();
+    const snapshot = JSON.stringify(current);
+    const deloaded = applySessionDeload(current);
+
+    expect(JSON.stringify(current)).toBe(snapshot);
+    expect(deloaded.programDayId).toBe(current.programDayId);
+    expect(deloaded.prescriptions.map((item) => item.exerciseId)).toEqual(
+      current.prescriptions.map((item) => item.exerciseId),
+    );
+    expect(deloaded.prescriptions.map((item) => item.rest_s)).toEqual(
+      current.prescriptions.map((item) => item.rest_s),
+    );
+    expect(deloaded.prescriptions.map((item) => item.nextState)).toEqual(
+      current.prescriptions.map((item) => item.nextState),
+    );
+    expect(deloaded.prescriptions[0]!.sets.filter((set) => !set.isWarmup).every((set) => (
+      set.targetReps[0] === 6 && set.targetReps[1] === 8
+    ))).toBe(true);
+  });
+
+  it('keeps top-only movements usable by converting one lowered set to ordinary work', () => {
+    const current = plan();
+    current.prescriptions[0] = {
+      ...current.prescriptions[0]!,
+      sets: [
+        { setIndex: -1, weight: 45, targetReps: [5, 5], kind: 'warmup', isWarmup: true },
+        { setIndex: 0, weight: 200, targetReps: [4, 6], kind: 'top' },
+        { setIndex: 1, weight: 190, targetReps: [4, 6], kind: 'top' },
+      ],
+    };
+
+    const deloaded = applySessionDeload(current);
+    const bench = deloaded.prescriptions[0]!;
+    expect(bench.sets).toEqual([
+      { setIndex: -1, weight: 40, targetReps: [5, 5], kind: 'warmup', isWarmup: true },
+      { setIndex: 0, weight: 180, targetReps: [4, 6], kind: 'work' },
+    ]);
+    expect(bench.sets.some((set) => set.kind === 'top')).toBe(false);
+    expect(bench.sets.filter((set) => !set.isWarmup)).toHaveLength(1);
+    expect(validateChange(deloaded, current)).toMatchObject({ ok: true });
   });
 });
